@@ -24,6 +24,14 @@ app.config['NOTIFICATION_SERVICE_URL'] = os.getenv(
 db = SQLAlchemy(app)
 
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    return response
+
+
 def send_notification(user_id, title, message, notification_type='info', related_submission_id=None):
     """
     Send an in-app notification through the Notification Service.
@@ -138,6 +146,82 @@ def token_required(required_roles=None):
             return f(*args, **kwargs)
         return decorated
     return decorator
+
+
+def build_tracking_steps(submission):
+    stages = [
+        ('submitted', 'Submitted'),
+        ('assigned_internal_reviewer', 'Internal reviewer assigned'),
+        ('internal_review', 'Internal review'),
+        ('author_revision', 'Author revision'),
+        ('revised_submission', 'Revision submitted'),
+        ('external_review', 'External review if needed'),
+        ('editorial_board', 'Editorial Board'),
+        ('published', 'Publication decision')
+    ]
+    current_index = 0
+    for index, (key, _label) in enumerate(stages):
+        if submission.current_stage == key or submission.status == key:
+            current_index = index
+            break
+    if submission.status in ['approved_for_publishing', 'published', 'declined']:
+        current_index = len(stages) - 1
+
+    return [
+        {
+            'key': key,
+            'label': label,
+            'state': 'completed' if index < current_index else 'current' if index == current_index else 'pending'
+        }
+        for index, (key, label) in enumerate(stages)
+    ]
+
+
+def serialize_submission(submission, include_details=False):
+    result = {
+        'id': submission.id,
+        'title': submission.title,
+        'status': submission.status,
+        'current_stage': submission.current_stage,
+        'call_id': submission.call_id,
+        'theme_id': submission.theme_id,
+        'theme_name': submission.theme.name if submission.theme else None,
+        'corresponding_author_id': submission.corresponding_author_id,
+        'created_at': submission.created_at.isoformat(),
+        'tracking_steps': build_tracking_steps(submission)
+    }
+    if submission.call:
+        result['call'] = {
+            'id': submission.call.id,
+            'fiscal_year': submission.call.fiscal_year,
+            'abstract_deadline': submission.call.abstract_deadline.isoformat(),
+            'paper_deadline': submission.call.paper_deadline.isoformat(),
+            'status': submission.call.status
+        }
+    if include_details:
+        result['authors'] = [
+            {
+                'id': a.id,
+                'name': a.name,
+                'email': a.email,
+                'is_bou_staff': a.is_bou_staff,
+                'department_id': a.department_id,
+                'institution': a.institution,
+                'is_corresponding': a.is_corresponding
+            }
+            for a in submission.authors
+        ]
+        result['documents'] = [
+            {
+                'id': d.id,
+                'type': d.doc_type,
+                'file_path': d.file_path,
+                'uploaded_at': d.uploaded_at.isoformat(),
+                'version_number': d.version_number
+            }
+            for d in submission.documents
+        ]
+    return result
 
 # ---------- Routes ----------
 # 1. Health check
@@ -256,7 +340,119 @@ def create_submission():
     )
     return jsonify({'message': 'Submission created', 'submission_id': new_submission.id}), 201
 
-# 6. Upload a document (abstract, paper, revision)
+
+# 6. List submissions. Authors see their own submissions; staff roles see all.
+@app.route('/api/submissions', methods=['GET'])
+@token_required()
+def list_submissions():
+    staff_roles = {'ResearchOfficer', 'EditorialBoard', 'InternalReviewer', 'ExternalReviewer', 'Admin'}
+    if staff_roles.intersection(set(request.user_roles)):
+        submissions = Submission.query.order_by(Submission.id.desc()).all()
+    else:
+        submissions = Submission.query.filter_by(
+            corresponding_author_id=request.user_id
+        ).order_by(Submission.id.desc()).all()
+
+    return jsonify([serialize_submission(item) for item in submissions]), 200
+
+
+# 7. Update an author submission before or during requested revision.
+@app.route('/api/submissions/<int:submission_id>', methods=['PUT'])
+@token_required(required_roles=['Author'])
+def update_submission(submission_id):
+    submission = db.session.get(Submission, submission_id)
+    if not submission:
+        return jsonify({'message': 'Submission not found'}), 404
+    if submission.corresponding_author_id != request.user_id:
+        return jsonify({'message': 'You can only edit your own submissions'}), 403
+    if submission.status in ['approved_for_publishing', 'published', 'declined']:
+        return jsonify({'message': 'This submission can no longer be edited'}), 400
+
+    data = request.get_json() or {}
+    if data.get('title'):
+        submission.title = data['title']
+    if data.get('theme_id'):
+        theme = db.session.get(Theme, data['theme_id'])
+        if not theme or theme.call_id != submission.call_id:
+            return jsonify({'message': 'Invalid theme for this call'}), 400
+        submission.theme_id = theme.id
+
+    if isinstance(data.get('authors'), list) and data['authors']:
+        Author.query.filter_by(submission_id=submission.id).delete()
+        for index, author_data in enumerate(data['authors']):
+            db.session.add(Author(
+                submission_id=submission.id,
+                name=author_data['name'],
+                email=author_data['email'],
+                is_bou_staff=author_data.get('is_bou_staff', False),
+                department_id=author_data.get('department_id'),
+                institution=author_data.get('institution'),
+                is_corresponding=author_data.get('is_corresponding', index == 0)
+            ))
+
+    submission.status = 'submitted'
+    submission.current_stage = 'revised_submission' if data.get('is_revision') else submission.current_stage
+    db.session.commit()
+
+    send_notification(
+        request.user_id,
+        'Submission updated',
+        f'Your submission "{submission.title}" has been updated.',
+        notification_type='submission',
+        related_submission_id=submission.id
+    )
+    return jsonify({'message': 'Submission updated', 'submission': serialize_submission(submission, True)}), 200
+
+
+# 8. Delete an author submission before a final decision is made.
+@app.route('/api/submissions/<int:submission_id>', methods=['DELETE'])
+@token_required(required_roles=['Author'])
+def delete_submission(submission_id):
+    submission = db.session.get(Submission, submission_id)
+    if not submission:
+        return jsonify({'message': 'Submission not found'}), 404
+    if submission.corresponding_author_id != request.user_id:
+        return jsonify({'message': 'You can only delete your own submissions'}), 403
+    if submission.status in ['approved_for_publishing', 'published', 'declined']:
+        return jsonify({'message': 'This submission can no longer be deleted'}), 400
+
+    Author.query.filter_by(submission_id=submission.id).delete()
+    DocumentVersion.query.filter_by(submission_id=submission.id).delete()
+    db.session.delete(submission)
+    db.session.commit()
+    return jsonify({'message': 'Submission deleted'}), 200
+
+
+# 9. Staff update workflow status/stage after verification or publication decisions.
+@app.route('/api/submissions/<int:submission_id>/status', methods=['PUT'])
+@token_required(required_roles=['ResearchOfficer', 'EditorialBoard', 'Admin'])
+def update_submission_status(submission_id):
+    submission = db.session.get(Submission, submission_id)
+    if not submission:
+        return jsonify({'message': 'Submission not found'}), 404
+
+    data = request.get_json() or {}
+    if data.get('status'):
+        submission.status = data['status']
+    if data.get('current_stage'):
+        submission.current_stage = data['current_stage']
+
+    db.session.commit()
+
+    if data.get('notify_author', True):
+        decision_message = data.get('message') or f'Your submission "{submission.title}" is now at {submission.current_stage}.'
+        send_notification(
+            submission.corresponding_author_id,
+            data.get('title', 'Submission status updated'),
+            decision_message,
+            notification_type='decision',
+            related_submission_id=submission.id
+        )
+
+    return jsonify({'message': 'Submission status updated', 'submission': serialize_submission(submission, True)}), 200
+
+
+# 10. Upload a document (abstract, paper, revision)
 @app.route('/api/submissions/<int:submission_id>/documents', methods=['POST'])
 @token_required(required_roles=['Author'])
 def upload_document(submission_id):
@@ -315,25 +511,18 @@ def upload_document(submission_id):
     )
     return jsonify({'message': 'File uploaded', 'document_id': doc.id}), 201
 
-# 7. Get submission details (with authors and documents)
+# 11. Get submission details (with authors and documents)
 @app.route('/api/submissions/<int:submission_id>', methods=['GET'])
 @token_required()
 def get_submission(submission_id):
     submission = db.session.get(Submission, submission_id)
     if not submission:
         return jsonify({'message': 'Not found'}), 404
-    # Check if user has access (author, RO, Editorial, etc.) We'll allow all for now
-    result = {
-        'id': submission.id,
-        'title': submission.title,
-        'status': submission.status,
-        'current_stage': submission.current_stage,
-        'call_id': submission.call_id,
-        'theme_id': submission.theme_id,
-        'authors': [{'id': a.id, 'name': a.name, 'email': a.email, 'is_corresponding': a.is_corresponding} for a in submission.authors],
-        'documents': [{'id': d.id, 'type': d.doc_type, 'file_path': d.file_path, 'uploaded_at': d.uploaded_at.isoformat()} for d in submission.documents]
-    }
-    return jsonify(result), 200
+    staff_roles = {'ResearchOfficer', 'EditorialBoard', 'InternalReviewer', 'ExternalReviewer', 'Admin'}
+    if submission.corresponding_author_id != request.user_id and not staff_roles.intersection(set(request.user_roles)):
+        return jsonify({'message': 'Permission denied'}), 403
+
+    return jsonify(serialize_submission(submission, True)), 200
 
 # ---------- Create tables and initial data ----------
 with app.app_context():

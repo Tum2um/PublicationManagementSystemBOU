@@ -49,6 +49,48 @@ class UserRole(db.Model):
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False)
     role_id = db.Column(db.Integer, db.ForeignKey('roles.id'), nullable=False)
 
+
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    return response
+
+
+def create_user_from_payload(data):
+    name = data.get('name')
+    email = (data.get('email') or '').strip().lower()
+    password = data.get('password')
+    role_names = data.get('roles') or ['Author']
+
+    if not name or not email or not password:
+        return None, ({'message': 'Name, email and password are required'}, 400)
+
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user:
+        return None, ({'message': 'User with this email already exists'}, 409)
+
+    new_user = User(
+        name=name,
+        email=email,
+        password_hash=generate_password_hash(password, method='pbkdf2:sha256')
+    )
+
+    for role_name in role_names:
+        role = Role.query.filter_by(name=role_name).first()
+        if role:
+            new_user.roles.append(role)
+
+    if not new_user.roles:
+        role = Role.query.filter_by(name='Author').first()
+        if role:
+            new_user.roles.append(role)
+
+    db.session.add(new_user)
+    db.session.commit()
+    return new_user, None
+
 # ---------- Helper function: token_required (decorator for protected routes) ----------
 def token_required(required_roles=None):
     """
@@ -97,44 +139,19 @@ def token_required(required_roles=None):
 def health():
     return jsonify({'status': 'Identity Service is running'}), 200
 
-# 2. Register a new user (for now, we allow anyone to register, but later we'll restrict to Admin)
+# 2. Create a new user account. This is intentionally Admin-only because BOU
+# staff accounts are created by an authorized role, not by public self-signup.
 @app.route('/api/auth/register', methods=['POST'])
+@token_required(required_roles=['Admin'])
 def register():
     data = request.get_json()
     if not data:
         return jsonify({'message': 'No input data provided'}), 400
 
-    name = data.get('name')
-    email = data.get('email')
-    password = data.get('password')
-    role_names = data.get('roles', ['Author'])  # default role is Author
-
-    # Basic validation
-    if not name or not email or not password:
-        return jsonify({'message': 'Name, email and password are required'}), 400
-
-    # Check if user already exists
-    existing_user = User.query.filter_by(email=email).first()
-    if existing_user:
-        return jsonify({'message': 'User with this email already exists'}), 409
-
-    # Hash the password
-    hashed_password = generate_password_hash(password, method='pbkdf2:sha256')
-
-    # Create new user
-    new_user = User(name=name, email=email, password_hash=hashed_password)
-
-    # Assign roles
-    for role_name in role_names:
-        role = Role.query.filter_by(name=role_name).first()
-        if role:
-            new_user.roles.append(role)
-        else:
-            # If role doesn't exist, we could create it, but for now we ignore or log
-            pass
-
-    db.session.add(new_user)
-    db.session.commit()
+    new_user, error = create_user_from_payload(data)
+    if error:
+        body, status = error
+        return jsonify(body), status
 
     return jsonify({'message': 'User created successfully', 'user_id': new_user.id}), 201
 
@@ -184,9 +201,10 @@ def get_me():
         'is_active': user.is_active
     }), 200
 
-# 5. Admin only: list all users (to test role-based access)
+# 5. List users. Admin creates users; workflow staff can view reviewers/authors
+# so they can assign work to the correct person.
 @app.route('/api/users', methods=['GET'])
-@token_required(required_roles=['Admin'])
+@token_required(required_roles=['Admin', 'ResearchOfficer', 'EditorialBoard'])
 def list_users():
     users = User.query.all()
     result = []
@@ -200,6 +218,26 @@ def list_users():
         })
     return jsonify(result), 200
 
+
+@app.route('/api/users', methods=['POST'])
+@token_required(required_roles=['Admin'])
+def create_user():
+    data = request.get_json()
+    if not data:
+        return jsonify({'message': 'No input data provided'}), 400
+
+    new_user, error = create_user_from_payload(data)
+    if error:
+        body, status = error
+        return jsonify(body), status
+
+    return jsonify({
+        'message': 'User created successfully',
+        'user_id': new_user.id,
+        'email': new_user.email,
+        'roles': [role.name for role in new_user.roles]
+    }), 201
+
 # ---------- Create tables if they don't exist ----------
 # We need to run this once when the app starts. We'll do it in the main block.
 with app.app_context():
@@ -209,6 +247,27 @@ with app.app_context():
         if not Role.query.filter_by(name=role_name).first():
             db.session.add(Role(name=role_name))
     db.session.commit()
+
+    if not User.query.join(User.roles).filter(Role.name == 'Admin').first():
+        admin_role = Role.query.filter_by(name='Admin').first()
+        admin_email = os.getenv('DEV_ADMIN_EMAIL', 'admin@bou.or.ug')
+        existing_admin = User.query.filter_by(email=admin_email).first()
+        if existing_admin and admin_role:
+            existing_admin.roles.append(admin_role)
+            db.session.commit()
+        elif not existing_admin:
+            admin_user = User(
+                name=os.getenv('DEV_ADMIN_NAME', 'BOU System Admin'),
+                email=admin_email,
+                password_hash=generate_password_hash(
+                    os.getenv('DEV_ADMIN_PASSWORD', 'Admin123!'),
+                    method='pbkdf2:sha256'
+                )
+            )
+            if admin_role:
+                admin_user.roles.append(admin_role)
+            db.session.add(admin_user)
+            db.session.commit()
 
 # ---------- Run the app ----------
 if __name__ == '__main__':

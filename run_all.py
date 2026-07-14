@@ -38,6 +38,12 @@ SERVICES = [
         "cmd": ["venv/bin/uvicorn", "app.main:app", "--reload", "--port", "5005"],
         "url": "http://127.0.0.1:5005/health",
     },
+    {
+        "name": "frontend",
+        "cwd": ROOT / "frontend",
+        "cmd": [sys.executable, "-m", "http.server", "3000", "--bind", "127.0.0.1"],
+        "url": "http://127.0.0.1:3000",
+    },
 ]
 
 

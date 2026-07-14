@@ -15,6 +15,14 @@ app.config.from_object(Config)
 db.init_app(app)
 
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    return response
+
+
 @app.route('/health', methods=['GET'])
 def health():
     return jsonify({'status': 'Master Data Service is running'}), 200
@@ -138,6 +146,29 @@ def update_theme(theme_id):
     return jsonify({'id': theme.id, 'name': theme.name, 'is_active': theme.is_active})
 
 # ------------------- START THE WEBSITE -------------------
+with app.app_context():
+    db.create_all()
+    for name in [
+        'Research Department',
+        'Financial Markets Department',
+        'Statistics Department',
+        'Supervision Department',
+        'National Payment Systems Department'
+    ]:
+        if not Department.query.filter_by(name=name).first():
+            db.session.add(Department(name=name))
+    for name in [
+        'Macroeconomic Policy',
+        'Financial Stability',
+        'Monetary Policy',
+        'Digital Financial Services',
+        'External Sector Research'
+    ]:
+        if not Theme.query.filter_by(name=name).first():
+            db.session.add(Theme(name=name))
+    db.session.commit()
+
+
 if __name__ == '__main__':
     # Port 5004 is YOUR assigned port. 
     # debug=True means it restarts automatically when you change code.

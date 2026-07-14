@@ -25,6 +25,14 @@ app.config['NOTIFICATION_SERVICE_URL'] = os.getenv(
 db = SQLAlchemy(app)
 
 
+@app.after_request
+def add_cors_headers(response):
+    response.headers['Access-Control-Allow-Origin'] = '*'
+    response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Authorization'
+    response.headers['Access-Control-Allow-Methods'] = 'GET, POST, PUT, DELETE, OPTIONS'
+    return response
+
+
 class ReviewAssignment(db.Model):
     __tablename__ = 'review_assignments'
     id = db.Column(db.Integer, primary_key=True)
@@ -154,7 +162,18 @@ def list_assignments():
             'status': item.status,
             'assigned_by': item.assigned_by,
             'verified_by': item.verified_by,
-            'verify_reason': item.verify_reason
+            'verify_reason': item.verify_reason,
+            'comments': [
+                {
+                    'id': comment.id,
+                    'recommendation': comment.recommendation,
+                    'comments': comment.comments,
+                    'verification_status': comment.verification_status,
+                    'verification_reason': comment.verification_reason,
+                    'submitted_at': comment.submitted_at.isoformat()
+                }
+                for comment in item.comments
+            ]
         }
         for item in assignments
     ]), 200

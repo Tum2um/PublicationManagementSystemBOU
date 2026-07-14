@@ -1,8 +1,17 @@
 from fastapi import FastAPI, HTTPException, Query
+from fastapi.middleware.cors import CORSMiddleware
 from app.database import get_connection, create_tables, now
 from app.schemas import NotificationCreate
 
 app = FastAPI(title="BOU Notification Service")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],
+    allow_credentials=False,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.on_event("startup")
