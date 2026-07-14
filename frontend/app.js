@@ -71,10 +71,15 @@ async function request(service, path, options = {}) {
     headers.Authorization = `Bearer ${state.token}`;
   }
 
-  const response = await fetch(`${API[service]}${path}`, {
-    ...options,
-    headers
-  });
+  let response;
+  try {
+    response = await fetch(`${API[service]}${path}`, {
+      ...options,
+      headers
+    });
+  } catch (_error) {
+    throw new Error("Cannot reach the Django backend. Make sure python3 run_all.py is running, or start the backend on port 8000.");
+  }
 
   let data = null;
   try {
