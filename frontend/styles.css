@@ -67,16 +67,28 @@ button {
   justify-content: space-between;
 }
 
-.brand-mark {
-  width: 62px;
-  height: 62px;
+.logo-frame {
+  width: 54px;
+  height: 54px;
   border-radius: 8px;
   display: grid;
   place-items: center;
-  background: var(--bou-gold);
-  color: var(--bou-brown);
-  font-weight: 900;
-  letter-spacing: 0.5px;
+  background: var(--white);
+  border: 1px solid rgba(255, 255, 255, 0.34);
+  box-shadow: 0 10px 24px rgba(39, 22, 21, 0.16);
+  overflow: hidden;
+}
+
+.logo-frame.large {
+  width: 82px;
+  height: 82px;
+}
+
+.logo-frame img {
+  display: block;
+  width: 82%;
+  height: 82%;
+  object-fit: contain;
 }
 
 .brand-panel h1 {
@@ -240,11 +252,6 @@ button {
   display: flex;
   align-items: center;
   gap: 12px;
-}
-
-.side-brand .brand-mark {
-  width: 46px;
-  height: 46px;
 }
 
 .side-brand strong {

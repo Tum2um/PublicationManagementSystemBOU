@@ -44,6 +44,14 @@ function initials(name) {
     .toUpperCase();
 }
 
+function logoMarkup(extraClass = "") {
+  return `
+    <div class="logo-frame ${extraClass}">
+      <img src="assets/bou-logo.webp" alt="Bank of Uganda logo">
+    </div>
+  `;
+}
+
 function showToast(message) {
   const existing = document.querySelector(".toast");
   if (existing) existing.remove();
@@ -153,7 +161,7 @@ function renderLogin() {
       <section class="login-shell">
         <div class="brand-panel">
           <div>
-            <div class="brand-mark">BOU</div>
+            ${logoMarkup("large")}
             <h1>Publication Management System</h1>
             <p>Research submissions, reviewer assignments, decisions, and notifications in one controlled workflow.</p>
           </div>
@@ -228,7 +236,7 @@ function renderShell() {
     <div class="app-shell">
       <aside class="sidebar">
         <div class="side-brand">
-          <div class="brand-mark">BOU</div>
+          ${logoMarkup()}
           <div>
             <strong>Publication<br>Management</strong>
             <small>Research Department</small>
