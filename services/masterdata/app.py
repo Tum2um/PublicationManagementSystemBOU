@@ -14,6 +14,11 @@ app.config.from_object(Config)
 # 2. Connect the database blueprint to the app
 db.init_app(app)
 
+
+@app.route('/health', methods=['GET'])
+def health():
+    return jsonify({'status': 'Master Data Service is running'}), 200
+
 # 3. Create the actual database file (database.db) if it doesn't exist.
 # We put this inside a special check so it only runs when we manually tell it to.
 @app.cli.command("initdb")

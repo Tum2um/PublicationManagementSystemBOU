@@ -15,11 +15,11 @@ load_dotenv()
 app = Flask(__name__)
 
 # 4. Configure the database connection from .env
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///identity.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False  # disables a warning
 
 # 5. Get the JWT secret from .env
-app.config['SECRET_KEY'] = os.getenv('JWT_SECRET')
+app.config['SECRET_KEY'] = os.getenv('JWT_SECRET', 'BOU_DEV_SUPER_SECRET_2026')
 
 # 6. Initialize the database object
 db = SQLAlchemy(app)

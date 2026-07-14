@@ -1,5 +1,8 @@
 import os
 import datetime
+import json
+import urllib.error
+import urllib.request
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from functools import wraps
@@ -10,11 +13,44 @@ from dotenv import load_dotenv
 load_dotenv()
 
 app = Flask(__name__)
-app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('DATABASE_URL', 'sqlite:///submission.db')
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-app.config['SECRET_KEY'] = os.getenv('JWT_SECRET')
+app.config['SECRET_KEY'] = os.getenv('JWT_SECRET', 'BOU_DEV_SUPER_SECRET_2026')
+app.config['NOTIFICATION_SERVICE_URL'] = os.getenv(
+    'NOTIFICATION_SERVICE_URL',
+    'http://127.0.0.1:5005'
+)
 
 db = SQLAlchemy(app)
+
+
+def send_notification(user_id, title, message, notification_type='info', related_submission_id=None):
+    """
+    Send an in-app notification through the Notification Service.
+    If the notification service is down, the main submission workflow still continues.
+    """
+    payload = {
+        'user_id': user_id,
+        'title': title,
+        'message': message,
+        'notification_type': notification_type,
+        'related_submission_id': related_submission_id,
+        'channel': 'in_app'
+    }
+    url = app.config['NOTIFICATION_SERVICE_URL'].rstrip('/') + '/notifications'
+    request_data = json.dumps(payload).encode('utf-8')
+    notification_request = urllib.request.Request(
+        url,
+        data=request_data,
+        headers={'Content-Type': 'application/json'},
+        method='POST'
+    )
+    try:
+        urllib.request.urlopen(notification_request, timeout=3)
+        return True
+    except (urllib.error.URLError, TimeoutError):
+        app.logger.warning('Notification service unavailable; continuing workflow.')
+        return False
 
 # ---------- Models ----------
 # We'll define tables for: Call, Theme, Submission, Author, DocumentVersion
@@ -27,7 +63,7 @@ class Call(db.Model):
     abstract_deadline = db.Column(db.DateTime, nullable=False)
     paper_deadline = db.Column(db.DateTime, nullable=False)
     status = db.Column(db.String(20), default='draft')  # draft, published, closed
-    created_at = db.Column(db.DateTime, default=datetime.datetime.now(datetime.UTC))
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
 
 class Theme(db.Model):
     __tablename__ = 'themes'
@@ -47,7 +83,7 @@ class Submission(db.Model):
     corresponding_author_id = db.Column(db.Integer, nullable=False)  # user id from identity service
     status = db.Column(db.String(30), default='draft')  # draft, submitted, under_internal_review, etc.
     current_stage = db.Column(db.String(50), default='submitted')  # see SRS
-    created_at = db.Column(db.DateTime, default=datetime.datetime.now(datetime.UTC))
+    created_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     # relationships
     call = db.relationship('Call', backref='submissions')
     theme = db.relationship('Theme', backref='submissions')
@@ -72,7 +108,7 @@ class DocumentVersion(db.Model):
     doc_type = db.Column(db.String(20), nullable=False)  # 'abstract', 'paper', 'revision'
     file_path = db.Column(db.String(500), nullable=False)  # path to stored file
     uploaded_by = db.Column(db.Integer, nullable=False)  # user id
-    uploaded_at = db.Column(db.DateTime, default=datetime.datetime.now(datetime.UTC))
+    uploaded_at = db.Column(db.DateTime, default=datetime.datetime.utcnow)
     version_number = db.Column(db.Integer, default=1)
 
 # ---------- Helper: token_required decorator (identical to identity service) ----------
@@ -131,6 +167,11 @@ def create_call():
         status='draft'
     )
     db.session.add(new_call)
+    db.session.flush()
+
+    for theme_name in data.get('themes', []):
+        db.session.add(Theme(call_id=new_call.id, name=theme_name))
+
     db.session.commit()
     return jsonify({'message': 'Call created', 'call_id': new_call.id}), 201
 
@@ -187,38 +228,13 @@ def create_submission():
         theme_id=theme.id,
         title=data['title'],
         corresponding_author_id=request.user_id,  # logged-in user is corresponding
-        status='draft',
+        status='submitted',
         current_stage='submitted'
     )
     db.session.add(new_submission)
     db.session.flush()  # to get the id
 
-    # Add authors (including corresponding)
-    for author_data in data['authors']:
-        # Ensure at least one author is the corresponding (we'll set is_corresponding based on email matching logged-in user)
-        is_corresponding = (author_data.get('email') == request.user_email)  # We don't have email in token yet; we'll store in request.user
-        # Actually we didn't store email in token payload; we'll add it in identity service later. For now, we'll assume the first author is corresponding.
-        # We'll improve later. For now: set is_corresponding = True if index == 0
-        # But we need to get the email from somewhere; we can query the identity service but for MVP we'll set corresponding as the logged user.
-        # We'll make a simpler version: we will set is_corresponding for the author whose email equals the logged-in user's email.
-        # Since we don't have email in token, we'll use the user_id and assume we will fetch it later.
-        # For now, we'll just set is_corresponding based on a flag in the request, or we can just set it for the logged-in user.
-        # Simpler: we'll set is_corresponding = (author_data.get('is_corresponding', False))
-        # I'll adjust the code below.
-
-    # For now, we'll just create authors without is_corresponding; we'll set the corresponding author later.
-    # Let's keep it minimal. We'll revisit when we add the full submission form.
-
-    # For demo, we'll just create a single author entry (the logged-in user) and ignore co-authors for now.
-    # We'll expand later.
-
-    # Simpler: we'll add only the logged-in user as author.
-    # We'll get user info from identity service? Not needed for MVP.
-    # We'll just store name and email from request.
-    # We'll require 'authors' list with name, email, is_bou_staff, department/institution.
-    # We'll just loop.
-
-    for author_data in data['authors']:
+    for index, author_data in enumerate(data['authors']):
         author = Author(
             submission_id=new_submission.id,
             name=author_data['name'],
@@ -226,11 +242,18 @@ def create_submission():
             is_bou_staff=author_data.get('is_bou_staff', False),
             department_id=author_data.get('department_id'),
             institution=author_data.get('institution'),
-            is_corresponding=author_data.get('is_corresponding', False)
+            is_corresponding=author_data.get('is_corresponding', index == 0)
         )
         db.session.add(author)
 
     db.session.commit()
+    send_notification(
+        request.user_id,
+        'Submission received',
+        f'Your submission "{new_submission.title}" has been received and is awaiting review.',
+        notification_type='submission',
+        related_submission_id=new_submission.id
+    )
     return jsonify({'message': 'Submission created', 'submission_id': new_submission.id}), 201
 
 # 6. Upload a document (abstract, paper, revision)
@@ -269,7 +292,7 @@ def upload_document(submission_id):
     upload_dir = os.path.join(os.getcwd(), 'uploads')
     os.makedirs(upload_dir, exist_ok=True)
     # Generate unique filename
-    timestamp = datetime.datetime.now(datetime.UTC).strftime('%Y%m%d_%H%M%S')
+    timestamp = datetime.datetime.utcnow().strftime('%Y%m%d_%H%M%S')
     filename = f"{submission_id}_{doc_type}_{timestamp}_{file.filename}"
     file_path = os.path.join(upload_dir, filename)
     file.save(file_path)
@@ -283,6 +306,13 @@ def upload_document(submission_id):
     )
     db.session.add(doc)
     db.session.commit()
+    send_notification(
+        submission.corresponding_author_id,
+        'Document uploaded',
+        f'Your {doc_type} document for "{submission.title}" has been uploaded successfully.',
+        notification_type='document',
+        related_submission_id=submission.id
+    )
     return jsonify({'message': 'File uploaded', 'document_id': doc.id}), 201
 
 # 7. Get submission details (with authors and documents)
@@ -310,7 +340,7 @@ with app.app_context():
     db.create_all()
     # Optionally seed a sample call for testing (remove later)
     # if not Call.query.first():
-    #     sample_call = Call(fiscal_year='2026/2027', description='Test Call', abstract_deadline=datetime.datetime.now(datetime.UTC)+datetime.timedelta(days=30), paper_deadline=datetime.datetime.now(datetime.UTC)+datetime.timedelta(days=60), status='published')
+    #     sample_call = Call(fiscal_year='2026/2027', description='Test Call', abstract_deadline=datetime.datetime.utcnow()+datetime.timedelta(days=30), paper_deadline=datetime.datetime.utcnow()+datetime.timedelta(days=60), status='published')
     #     db.session.add(sample_call)
     #     db.session.commit()
 
