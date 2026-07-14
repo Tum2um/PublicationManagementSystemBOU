@@ -570,18 +570,22 @@ function renderAdminView() {
     </section>
     <section class="grid two" style="margin-top:16px;">
       <div class="panel">
-        <div class="section-title"><div><span class="eyebrow">Master data</span><h2>Add department</h2></div></div>
+        <div class="section-title"><div><span class="eyebrow">Master data</span><h2>Departments</h2></div></div>
         <form id="department-form" class="form-grid">
           <div class="form-row"><label>Department name</label><input name="name" required></div>
           <button class="button secondary" type="submit">Add department</button>
         </form>
+        <div style="margin-top:16px;">
+          ${renderDepartmentsTable()}
+        </div>
       </div>
       <div class="panel">
-        <div class="section-title"><div><span class="eyebrow">Master data</span><h2>Add theme</h2></div></div>
-        <form id="theme-form" class="form-grid">
-          <div class="form-row"><label>Theme name</label><input name="name" required></div>
-          <button class="button secondary" type="submit">Add theme</button>
-        </form>
+        <div class="section-title"><div><span class="eyebrow">Research setup</span><h2>Theme ownership</h2></div></div>
+        <p class="muted">
+          Themes are added by the Research Officer while creating a call for papers.
+          This keeps themes tied to the correct call and avoids Admin creating research workflow content.
+        </p>
+        <div class="empty" style="margin-top:14px;">Use Research Officer &gt; Create call for papers to add call themes.</div>
       </div>
     </section>
   `;
@@ -780,6 +784,25 @@ function renderUsersTable() {
               <td>${escapeHtml(user.email)}</td>
               <td>${user.roles.map((role) => `<span class="badge">${role}</span>`).join(" ")}</td>
               <td>${user.is_active ? "Active" : "Inactive"}</td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </div>
+  `;
+}
+
+function renderDepartmentsTable() {
+  if (!state.departments.length) return `<div class="empty">No departments found.</div>`;
+  return `
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>ID</th><th>Department name</th></tr></thead>
+        <tbody>
+          ${state.departments.map((department) => `
+            <tr>
+              <td>${department.id}</td>
+              <td>${escapeHtml(department.name)}</td>
             </tr>
           `).join("")}
         </tbody>
@@ -1031,7 +1054,6 @@ function bindAdminView() {
   }
 
   bindMasterForm("department-form", "departments", "Department added.");
-  bindMasterForm("theme-form", "themes", "Theme added.");
 }
 
 function bindMasterForm(formId, path, successMessage) {

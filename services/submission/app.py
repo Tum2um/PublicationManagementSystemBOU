@@ -229,9 +229,9 @@ def serialize_submission(submission, include_details=False):
 def health():
     return jsonify({'status': 'Submission Service is running'}), 200
 
-# 2. Create a Call for Papers (only Research Officer or Admin)
+# 2. Create a Call for Papers (Research Officer only)
 @app.route('/api/calls', methods=['POST'])
-@token_required(required_roles=['ResearchOfficer', 'Admin'])
+@token_required(required_roles=['ResearchOfficer'])
 def create_call():
     data = request.get_json()
     required = ['fiscal_year', 'description', 'abstract_deadline', 'paper_deadline']
@@ -259,9 +259,9 @@ def create_call():
     db.session.commit()
     return jsonify({'message': 'Call created', 'call_id': new_call.id}), 201
 
-# 3. Publish a Call (Research Officer/Admin)
+# 3. Publish a Call (Research Officer only)
 @app.route('/api/calls/<int:call_id>/publish', methods=['PUT'])
-@token_required(required_roles=['ResearchOfficer', 'Admin'])
+@token_required(required_roles=['ResearchOfficer'])
 def publish_call(call_id):
     call = db.session.get(Call, call_id)
     if not call:
