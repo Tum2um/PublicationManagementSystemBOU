@@ -1,9 +1,9 @@
 const API = {
-  identity: "http://127.0.0.1:5001",
-  submission: "http://127.0.0.1:5002",
-  review: "http://127.0.0.1:5003",
-  masterdata: "http://127.0.0.1:5004",
-  notification: "http://127.0.0.1:5005"
+  identity: "http://127.0.0.1:8000",
+  submission: "http://127.0.0.1:8000",
+  review: "http://127.0.0.1:8000",
+  masterdata: "http://127.0.0.1:8000",
+  notification: "http://127.0.0.1:8000"
 };
 
 const state = {

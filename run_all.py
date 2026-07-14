@@ -9,34 +9,10 @@ ROOT = Path(__file__).resolve().parent
 
 SERVICES = [
     {
-        "name": "identity",
-        "cwd": ROOT / "services" / "identity",
-        "cmd": ["venv/bin/python", "app.py"],
-        "url": "http://127.0.0.1:5001/health",
-    },
-    {
-        "name": "submission",
-        "cwd": ROOT / "services" / "submission",
-        "cmd": ["venv/bin/python", "app.py"],
-        "url": "http://127.0.0.1:5002/health",
-    },
-    {
-        "name": "review",
-        "cwd": ROOT / "services" / "review",
-        "cmd": ["venv/bin/python", "app.py"],
-        "url": "http://127.0.0.1:5003/health",
-    },
-    {
-        "name": "masterdata",
-        "cwd": ROOT / "services" / "masterdata",
-        "cmd": ["venv/bin/python", "app.py"],
-        "url": "http://127.0.0.1:5004/health",
-    },
-    {
-        "name": "notification",
-        "cwd": ROOT / "services" / "notification",
-        "cmd": ["venv/bin/uvicorn", "app.main:app", "--reload", "--port", "5005"],
-        "url": "http://127.0.0.1:5005/health",
+        "name": "django-backend",
+        "cwd": ROOT / "backend",
+        "cmd": ["venv/bin/python", "manage.py", "runserver", "127.0.0.1:8000"],
+        "url": "http://127.0.0.1:8000/health",
     },
     {
         "name": "frontend",

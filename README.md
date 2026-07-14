@@ -8,7 +8,7 @@ Run this once to create/install each service environment:
 python3 setup_local.py
 ```
 
-Start all backend services and the frontend:
+Start the Django backend and the frontend:
 
 ```bash
 python3 run_all.py
@@ -19,11 +19,7 @@ Service ports:
 | Service | Port |
 |---|---:|
 | Frontend | 3000 |
-| Identity | 5001 |
-| Submission | 5002 |
-| Review | 5003 |
-| Master Data | 5004 |
-| Notification | 5005 |
+| Django backend | 8000 |
 
 Open the system in the browser:
 
@@ -40,8 +36,4 @@ Password: Admin123!
 
 The frontend does not have public registration. Accounts are created by the System Admin from inside the app.
 
-Open Gareth's Notification Service docs:
-
-```text
-http://127.0.0.1:5005/docs
-```
+The old `services/` Flask/FastAPI folders are kept for reference only. Active development now runs through the Django backend in `backend/`.

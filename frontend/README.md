@@ -2,7 +2,7 @@
 
 This is the first browser frontend for the Publication Management System.
 
-It is dependency-free HTML, CSS and JavaScript so the team can run it quickly while the backend microservices are still being shaped.
+It is dependency-free HTML, CSS and JavaScript so the team can run it quickly while the Django backend is being shaped.
 
 ## Run
 
@@ -23,7 +23,7 @@ http://127.0.0.1:3000
 
 The frontend has no public registration page. Accounts are created by the System Admin.
 
-For local development, the identity service seeds this account if no admin exists:
+For local development, the Django backend seeds this account:
 
 ```text
 Email: admin@bou.or.ug
