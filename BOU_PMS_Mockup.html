@@ -1,0 +1,1730 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>BOU Publication Management System — Prototype</title>
+<style>
+  :root{
+    --maroon:#651019;
+    --maroon-dark:#440a10;
+    --maroon-light:#7c1b23;
+    --cream:#fdf6ec;
+    --card:#ffffff;
+    --border:#e9dfcd;
+    --gold:#c1912f;
+    --gold-dark:#a97b23;
+    --text:#2a1c14;
+    --muted:#8a7a6a;
+    --success:#2f7d4f;
+    --success-bg:#eaf5ee;
+    --warn:#b3541e;
+    --warn-bg:#fbeee2;
+    --danger:#a3271f;
+    --danger-bg:#fbeae8;
+    --info:#2f5f7d;
+    --info-bg:#e9f2f6;
+    --radius:10px;
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;background:var(--cream);color:var(--text);}
+  h1,h2,h3,h4{font-family:Georgia,"Source Serif Pro",serif;margin:0;font-weight:600;}
+  a{color:inherit;}
+  button{font-family:inherit;cursor:pointer;}
+  ::-webkit-scrollbar{width:9px;height:9px;}
+  ::-webkit-scrollbar-thumb{background:#d9cbb0;border-radius:6px;}
+
+  /* ---------- App shell ---------- */
+  #app{display:flex;min-height:100vh;}
+
+  /* Sidebar */
+  #sidebar{
+    width:250px;flex-shrink:0;background:linear-gradient(180deg,var(--maroon) 0%,var(--maroon-dark) 100%);
+    color:#f4e9df;display:flex;flex-direction:column;padding:22px 16px;position:sticky;top:0;height:100vh;overflow-y:auto;
+  }
+  .brand{display:flex;gap:10px;align-items:center;margin-bottom:26px;padding:0 4px;}
+  .brand-crest{width:42px;height:42px;flex-shrink:0;}
+  .brand-text .t1{font-family:Georgia,serif;font-weight:700;font-size:15px;line-height:1.2;color:#fff;}
+  .brand-text .t2{font-size:11px;color:#d8b9a2;letter-spacing:.03em;}
+  .nav-group-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#c99a83;margin:16px 8px 6px;font-weight:600;}
+  .nav-item{
+    display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:8px;color:#f0e3d7;
+    font-size:14px;margin-bottom:2px;cursor:pointer;transition:background .12s;border:none;background:transparent;width:100%;text-align:left;
+  }
+  .nav-item:hover{background:rgba(255,255,255,.08);}
+  .nav-item.active{background:rgba(255,255,255,.16);font-weight:600;color:#fff;}
+  .nav-item .ico{width:18px;text-align:center;opacity:.9;font-size:14px;}
+  .nav-badge{margin-left:auto;background:var(--gold);color:#3a2a08;font-size:10.5px;font-weight:700;padding:1px 7px;border-radius:10px;}
+  .sidebar-footer{margin-top:auto;padding-top:14px;}
+  .btn-refresh{
+    width:100%;background:var(--gold);border:none;color:#3a2a08;font-weight:700;padding:11px;border-radius:8px;font-size:13.5px;
+  }
+  .btn-refresh:hover{background:var(--gold-dark);}
+  .role-switcher{margin-top:14px;background:rgba(0,0,0,.18);border-radius:8px;padding:10px;}
+  .role-switcher label{font-size:10px;text-transform:uppercase;letter-spacing:.06em;color:#d8b9a2;display:block;margin-bottom:6px;}
+  .role-switcher select{width:100%;padding:7px 8px;border-radius:6px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.08);color:#fff;font-size:13px;}
+  .role-switcher select option{color:#222;}
+
+  /* Main */
+  #main{flex:1;min-width:0;}
+  #topbar{
+    display:flex;align-items:center;justify-content:space-between;padding:16px 32px;background:var(--cream);
+    border-bottom:1px solid var(--border);position:sticky;top:0;z-index:5;
+  }
+  .top-left .eyebrow{font-size:11px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--gold-dark);margin-bottom:3px;}
+  .top-left h1{font-size:23px;}
+  .user-badge{display:flex;align-items:center;gap:10px;background:#fff;border:1px solid var(--border);padding:6px 8px 6px 6px;border-radius:30px;}
+  .avatar{width:34px;height:34px;border-radius:50%;background:var(--gold);color:#3a2a08;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px;}
+  .user-meta .name{font-size:13.5px;font-weight:700;line-height:1.15;}
+  .user-meta .role{font-size:11.5px;color:var(--muted);}
+  .btn-logout{border:1px solid var(--border);background:#fff;padding:6px 12px;border-radius:20px;font-size:12.5px;font-weight:600;color:var(--maroon);}
+  .btn-logout:hover{background:#f4ece0;}
+
+  #content{padding:26px 32px 60px;}
+
+  /* Cards / grid */
+  .grid{display:grid;gap:20px;}
+  .grid-2{grid-template-columns:1fr 1fr;}
+  .grid-3{grid-template-columns:repeat(3,1fr);}
+  @media(max-width:1000px){.grid-2,.grid-3{grid-template-columns:1fr;}}
+  .card{background:var(--card);border:1px solid var(--border);border-radius:var(--radius);padding:22px;}
+  .card .eyebrow{font-size:11px;font-weight:700;letter-spacing:.07em;text-transform:uppercase;color:var(--gold-dark);margin-bottom:5px;}
+  .card h2{font-size:19px;margin-bottom:6px;}
+  .card .sub{font-size:13px;color:var(--muted);margin-bottom:16px;line-height:1.5;}
+  .stat-card .stat-num{font-size:34px;font-weight:700;font-family:Georgia,serif;margin:4px 0 2px;}
+  .stat-card .stat-label{font-size:12.5px;color:var(--muted);}
+  .stat-pill{position:absolute;top:20px;right:20px;background:var(--warn-bg);color:var(--warn);font-size:11px;font-weight:700;padding:3px 10px;border-radius:20px;}
+  .card.rel{position:relative;}
+
+  /* Form elements */
+  label{display:block;font-size:12.5px;font-weight:600;color:#4a3a2c;margin-bottom:5px;}
+  .field{margin-bottom:14px;}
+  input[type=text],input[type=email],input[type=password],input[type=date],input[type=datetime-local],input[type=number],input[type=file],select,textarea{
+    width:100%;padding:9px 11px;border:1px solid var(--border);border-radius:7px;background:#fffaf3;font-size:13.5px;color:var(--text);font-family:inherit;
+  }
+  textarea{resize:vertical;min-height:70px;}
+  select[multiple]{min-height:110px;}
+  input:focus,select:focus,textarea:focus{outline:2px solid var(--gold);outline-offset:1px;}
+  .row-2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+  .hint{font-size:11.5px;color:var(--muted);margin-top:4px;}
+
+  .btn{border:none;border-radius:8px;padding:10px 16px;font-size:13.5px;font-weight:700;display:inline-flex;align-items:center;gap:6px;}
+  .btn-primary{background:var(--maroon);color:#fff;width:100%;justify-content:center;padding:12px;}
+  .btn-primary:hover{background:var(--maroon-dark);}
+  .btn-sm{padding:6px 12px;font-size:12.5px;width:auto;}
+  .btn-outline{background:#fff;border:1px solid var(--border);color:var(--text);}
+  .btn-outline:hover{background:#f6efe3;}
+  .btn-gold{background:var(--gold);color:#3a2a08;}
+  .btn-gold:hover{background:var(--gold-dark);}
+  .btn-danger-outline{background:#fff;border:1px solid var(--danger);color:var(--danger);}
+  .btn-danger-outline:hover{background:var(--danger-bg);}
+  .btn-success-outline{background:#fff;border:1px solid var(--success);color:var(--success);}
+  .btn-success-outline:hover{background:var(--success-bg);}
+  .btn-row{display:flex;gap:8px;flex-wrap:wrap;}
+
+  .empty{border:1px dashed var(--border);border-radius:8px;padding:26px;text-align:center;color:var(--muted);font-size:13px;background:#fffaf3;}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;}
+  th{text-align:left;font-size:10.5px;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--border);}
+  td{padding:10px 10px;border-bottom:1px solid #f2e9da;vertical-align:middle;}
+  tr:last-child td{border-bottom:none;}
+  .table-wrap{overflow-x:auto;}
+  .row-actions{display:flex;gap:6px;flex-wrap:wrap;}
+
+  .badge{display:inline-block;padding:3px 9px;border-radius:20px;font-size:11px;font-weight:700;}
+  .badge-open{background:var(--success-bg);color:var(--success);}
+  .badge-closed{background:#efe9e0;color:var(--muted);}
+  .badge-draft{background:#efe9e0;color:var(--muted);}
+  .badge-pending{background:var(--warn-bg);color:var(--warn);}
+  .badge-review{background:var(--info-bg);color:var(--info);}
+  .badge-revision{background:var(--warn-bg);color:var(--warn);}
+  .badge-published{background:var(--success-bg);color:var(--success);}
+  .badge-rejected{background:var(--danger-bg);color:var(--danger);}
+  .badge-role{background:#f0e3d3;color:var(--maroon-dark);margin:1px 3px 1px 0;}
+
+  /* Tracking bar */
+  .tracker{display:flex;align-items:center;margin:10px 0 4px;}
+  .tstep{flex:1;text-align:center;position:relative;}
+  .tstep .dot{width:22px;height:22px;border-radius:50%;background:#efe9e0;color:var(--muted);display:flex;align-items:center;justify-content:center;margin:0 auto 6px;font-size:11px;font-weight:700;border:2px solid #efe9e0;}
+  .tstep .line{position:absolute;top:10px;left:-50%;width:100%;height:2px;background:#efe9e0;z-index:0;}
+  .tstep:first-child .line{display:none;}
+  .tstep .label{font-size:10px;color:var(--muted);line-height:1.2;}
+  .tstep.done .dot{background:var(--success);border-color:var(--success);color:#fff;}
+  .tstep.done .line{background:var(--success);}
+  .tstep.current .dot{background:var(--gold);border-color:var(--gold);color:#3a2a08;}
+  .tstep.current .label{color:var(--text);font-weight:700;}
+  .tstep.blocked .dot{background:var(--danger-bg);border-color:var(--danger);color:var(--danger);}
+
+  /* Nav pills for sub-tabs */
+  .subtabs{display:flex;gap:6px;margin-bottom:16px;flex-wrap:wrap;}
+  .subtab{padding:7px 14px;border-radius:20px;border:1px solid var(--border);background:#fff;font-size:12.5px;font-weight:600;color:var(--muted);}
+  .subtab.active{background:var(--maroon);border-color:var(--maroon);color:#fff;}
+
+  /* Toast */
+  #toast-wrap{position:fixed;bottom:22px;right:22px;display:flex;flex-direction:column;gap:8px;z-index:999;}
+  .toast{background:var(--maroon-dark);color:#fff;padding:12px 18px;border-radius:8px;font-size:13px;box-shadow:0 6px 20px rgba(0,0,0,.2);max-width:340px;animation:slidein .18s ease;}
+  .toast.success{background:var(--success);}
+  .toast.warn{background:var(--warn);}
+  .toast.danger{background:var(--danger);}
+  @keyframes slidein{from{transform:translateY(8px);opacity:0;}to{transform:translateY(0);opacity:1;}}
+
+  /* Modal */
+  #modal-overlay{position:fixed;inset:0;background:rgba(30,15,10,.45);display:none;align-items:center;justify-content:center;z-index:998;}
+  #modal-overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:12px;width:460px;max-width:92vw;padding:24px;box-shadow:0 20px 50px rgba(0,0,0,.3);}
+  .modal h3{font-size:17px;margin-bottom:10px;}
+  .modal .modal-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:16px;}
+  .modal .role-checkbox-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px 12px;margin:8px 0 12px;}
+  .modal .role-checkbox-grid label{font-weight:400;font-size:13px;display:flex;align-items:center;gap:6px;}
+
+  .notif-item{display:flex;gap:12px;padding:14px 10px;border-bottom:1px solid #f2e9da;align-items:flex-start;}
+  .notif-item:last-child{border-bottom:none;}
+  .notif-dot{width:9px;height:9px;border-radius:50%;background:var(--gold);margin-top:6px;flex-shrink:0;}
+  .notif-item.read .notif-dot{background:#e2d9c8;}
+  .notif-text .msg{font-size:13.5px;}
+  .notif-text .meta{font-size:11.5px;color:var(--muted);margin-top:2px;}
+
+  .kv{display:flex;justify-content:space-between;padding:7px 0;border-bottom:1px dashed #eee2ce;font-size:13px;}
+  .kv:last-child{border-bottom:none;}
+  .kv .k{color:var(--muted);}
+  .kv .v{font-weight:600;text-align:right;}
+
+  .file-chip{display:flex;align-items:center;gap:8px;background:#fffaf3;border:1px solid var(--border);border-radius:7px;padding:8px 10px;font-size:12.5px;margin-bottom:6px;}
+  .file-chip .fico{background:var(--maroon);color:#fff;border-radius:5px;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:10px;font-weight:700;flex-shrink:0;}
+
+  .coauthor-row{display:grid;grid-template-columns:1.2fr 1.2fr .8fr 1fr auto;gap:8px;align-items:end;margin-bottom:8px;}
+  @media(max-width:900px){.coauthor-row{grid-template-columns:1fr 1fr;}}
+  .link-btn{background:none;border:none;color:var(--maroon);font-weight:700;font-size:12.5px;padding:0;}
+  .divider{height:1px;background:var(--border);margin:18px 0;}
+  .public-nav{display:flex;justify-content:space-between;align-items:center;padding:16px 32px;background:var(--maroon-dark);color:#fff;}
+  .public-nav .btn-outline{background:transparent;border-color:rgba(255,255,255,.4);color:#fff;}
+  .paper-card{border:1px solid var(--border);border-radius:10px;padding:16px 18px;margin-bottom:12px;background:#fff;}
+  .paper-card h4{font-size:15px;margin-bottom:4px;}
+  .paper-meta{font-size:12px;color:var(--muted);margin-bottom:6px;}
+  .center-note{text-align:center;color:var(--muted);font-size:13px;padding:40px 0;}
+  .flag-box{background:var(--danger-bg);border:1px solid var(--danger);color:var(--danger);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:12px;}
+  .ok-box{background:var(--success-bg);border:1px solid var(--success);color:var(--success);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:12px;}
+</style>
+</head>
+<body>
+
+<div id="app">
+  <nav id="sidebar"></nav>
+  <div id="main">
+    <div id="topbar"></div>
+    <div id="content"></div>
+  </div>
+</div>
+
+<div id="toast-wrap"></div>
+<div id="modal-overlay"><div class="modal" id="modal-box"></div></div>
+
+<script>
+/* =========================================================================
+   BOU PUBLICATION MANAGEMENT SYSTEM — CLICKABLE PROTOTYPE
+   Updated to support multiple roles per user (FR‑1.4) and role editing.
+   ========================================================================= */
+
+/* ---------------------------- ICONS (inline) ---------------------------- */
+const ICONS = {
+  dashboard:'&#9673;', calls:'&#128203;', assign:'&#128101;', verify:'&#9989;',
+  reports:'&#128202;', notif:'&#128276;', users:'&#128100;', dept:'&#127970;',
+  themes:'&#127991;&#65039;', templates:'&#128196;', publicrepo:'&#127760;',
+  audit:'&#128269;', submit:'&#128228;', mysubs:'&#128194;', myassign:'&#128221;'
+};
+
+/* ------------------------------- DATA MODEL ------------------------------ */
+const DB = {
+  departments: [
+    {id:1, name:'Research Department'},
+    {id:2, name:'Financial Markets Department'},
+    {id:3, name:'Statistics Department'},
+    {id:4, name:'Supervision Department'},
+    {id:5, name:'National Payment Systems Department'},
+  ],
+  users: [
+    {id:'u1', name:'BOU System Admin', email:'admin@bou.or.ug', roles:['Admin'], status:'Active'},
+    {id:'u2', name:'Gareth Tusiime', email:'gtusiime@bou.or.ug', roles:['ResearchOfficer'], status:'Active'},
+    {id:'u3', name:'Grace Nabirye', email:'gnabirye@bou.or.ug', roles:['EditorialBoard'], status:'Active'},
+    {id:'u4', name:'Simon Okello', email:'sokello@bou.or.ug', roles:['InternalReviewer'], status:'Active'},
+    {id:'u5', name:'Dr. Amina Farouk', email:'a.farouk@makerere.ac.ug', roles:['ExternalReviewer'], status:'Active'},
+    {id:'u6', name:'Lucy Namataaka Flavia', email:'lnamataaka@bou.or.ug', roles:['Author'], status:'Active'},
+  ],
+  calls: [
+    {id:1, fy:'2026/2027', description:'Working papers on macroeconomic stability, digital finance and supervisory practice.',
+      themes:['Macroeconomic Policy','Financial Stability','Digital Payments'],
+      abstractDeadline:'2026-06-30', paperDeadline:'2026-09-30', status:'Published'},
+    {id:2, fy:'2025/2026', description:'Prior cycle — closed.',
+      themes:['Banking Supervision','Monetary Policy'],
+      abstractDeadline:'2025-09-30', paperDeadline:'2025-12-15', status:'Closed'},
+  ],
+  submissions: [
+    {id:101, callId:2, theme:'Monetary Policy', title:'Exchange Rate Pass-Through in Uganda',
+      corresponding:{name:'Lucy Namataaka Flavia', email:'lnamataaka@bou.or.ug'},
+      coAuthors:[{name:'Peter Ariong', email:'pariong@bou.or.ug', staff:true, dept:'Research Department'}],
+      stage:5, status:'Published', pubRef:'BOU-WP-2025-014', pubDate:'2025-12-20',
+      docs:[{type:'Abstract', v:1},{type:'Working Paper', v:1}],
+      history:['Submitted 02 Sep 2025','Internal review completed','External review completed','Approved by Editorial Board 20 Dec 2025','Published 20 Dec 2025']},
+
+    {id:102, callId:1, theme:'Digital Payments', title:'Mobile Money and Financial Inclusion in Rural Uganda',
+      corresponding:{name:'Lucy Namataaka Flavia', email:'lnamataaka@bou.or.ug'},
+      coAuthors:[{name:'Brenda Achola', email:'bachola@external.org', staff:false, dept:'Makerere University'}],
+      stage:4, status:'Awaiting external reviewer comments', pubRef:null, pubDate:null,
+      docs:[{type:'Abstract', v:1},{type:'Working Paper', v:1}],
+      history:['Submitted 12 Jul 2026','Internal review completed — Minor Revision','Revised paper submitted','Sent for external review 14 Jul 2026']},
+
+    {id:103, callId:1, theme:'Financial Stability', title:'Determinants of Non-Performing Loans in Ugandan Commercial Banks',
+      corresponding:{name:'Lucy Namataaka Flavia', email:'lnamataaka@bou.or.ug'},
+      coAuthors:[],
+      stage:2, status:'Awaiting internal reviewer comments', pubRef:null, pubDate:null,
+      docs:[{type:'Abstract', v1:1},{type:'Working Paper', v:1}],
+      history:['Submitted 10 Jul 2026','Internal reviewer assigned 13 Jul 2026']},
+
+    {id:104, callId:1, theme:'Macroeconomic Policy', title:'Climate Shocks and Agricultural Credit Supply',
+      corresponding:{name:'Lucy Namataaka Flavia', email:'lnamataaka@bou.or.ug'},
+      coAuthors:[{name:'Ikayo Simon Peter', email:'ipeter@bou.or.ug', staff:true, dept:'Statistics Department'}],
+      stage:2, status:'Revision requested', pubRef:null, pubDate:null,
+      docs:[{type:'Abstract', v:1},{type:'Working Paper', v:1}],
+      history:['Submitted 05 Jul 2026','Internal review completed — Major Revision requested 11 Jul 2026']},
+
+    {id:105, callId:1, theme:'Macroeconomic Policy', title:'Digital Payment Adoption Post-COVID: A Panel Study',
+      corresponding:{name:'Lucy Namataaka Flavia', email:'lnamataaka@bou.or.ug'},
+      coAuthors:[],
+      stage:0, status:'Awaiting officer review / reviewer assignment', pubRef:null, pubDate:null,
+      docs:[{type:'Abstract', v:1}],
+      history:['Submitted 14 Jul 2026']},
+  ],
+  assignments: [
+    {id:501, submissionId:103, reviewerId:'u4', type:'Internal', status:'Active', assignedBy:'u2', coi:false},
+    {id:502, submissionId:104, reviewerId:'u4', type:'Internal', status:'Comments submitted — pending officer verification', assignedBy:'u2', coi:false},
+    {id:503, submissionId:102, reviewerId:'u5', type:'External', status:'Active', assignedBy:'u2', coi:false},
+  ],
+  comments: [
+    {id:701, assignmentId:502, recommendation:'Major Revision', text:'Methodology section needs a clearer identification strategy; literature review should engage more with recent East African studies. Data appendix incomplete.', submittedAt:'11 Jul 2026', verified:true},
+  ],
+  ebQueue: [
+    {id:801, kind:'Internal reviewer assignment', submissionId:103, refId:501, status:'Pending'},
+    {id:802, kind:'External reviewer assignment', submissionId:102, refId:503, status:'Verified'},
+  ],
+  notifications: [
+    {id:1, userId:'u6', text:'Your submission "Digital Payment Adoption Post-COVID" was received.', date:'14 Jul 2026', read:false},
+    {id:2, userId:'u6', text:'Reviewer comments are available for "Climate Shocks and Agricultural Credit Supply" — revision requested.', date:'11 Jul 2026', read:false},
+    {id:3, userId:'u2', text:'Simon Okello submitted comments for "Climate Shocks and Agricultural Credit Supply".', date:'11 Jul 2026', read:false},
+    {id:4, userId:'u4', text:'You have been assigned to review "Determinants of Non-Performing Loans in Ugandan Commercial Banks".', date:'13 Jul 2026', read:true},
+    {id:5, userId:'u3', text:'External reviewer assignment for "Mobile Money and Financial Inclusion" is awaiting your verification.', date:'14 Jul 2026', read:false},
+    {id:6, userId:'u5', text:'You have been assigned to review "Mobile Money and Financial Inclusion in Rural Uganda".', date:'14 Jul 2026', read:false},
+  ],
+  auditLog: [
+    {id:1, user:'Gareth Tusiime', action:'Published Call for Papers FY2026/2027', date:'01 Jun 2026 09:12', outcome:'Success'},
+    {id:2, user:'Lucy Namataaka Flavia', action:'Submitted abstract — Digital Payment Adoption Post-COVID', date:'14 Jul 2026 08:40', outcome:'Success'},
+    {id:3, user:'Gareth Tusiime', action:'Assigned Internal Reviewer (Simon Okello) — Determinants of NPLs', date:'13 Jul 2026 15:02', outcome:'Success'},
+    {id:4, user:'Simon Okello', action:'Submitted review comments — Climate Shocks and Agricultural Credit Supply', date:'11 Jul 2026 10:22', outcome:'Success'},
+    {id:5, user:'BOU System Admin', action:'Login', date:'15 Jul 2026 08:41', outcome:'Success'},
+    {id:6, user:'unknown@bou.or.ug', action:'Login attempt', date:'15 Jul 2026 08:02', outcome:'Failed — bad password'},
+  ],
+  templates: {
+    commentTemplate: {name:'Reviewer_Comments_Template_v2.docx', version:2, updated:'02 May 2026'},
+    guidelines: {name:'Reviewer_Guidelines_v3.pdf', version:3, updated:'02 May 2026'},
+    notifTemplates: [
+      {key:'submitted', name:'Submission Received', body:'Dear {{author}}, your submission "{{title}}" has been received and is now under review.'},
+      {key:'assigned', name:'Assigned for Review', body:'Dear {{reviewer}}, you have been assigned to review "{{title}}". Please submit your comments by {{deadline}}.'},
+      {key:'revision', name:'Revision Requested', body:'Dear {{author}}, reviewers have requested revisions to "{{title}}". Comments are attached.'},
+      {key:'approved', name:'Approved', body:'Dear {{author}}, "{{title}}" has been approved by the Editorial Board.'},
+      {key:'published', name:'Published', body:'Dear {{author}}, "{{title}}" has been published as {{ref}}.'},
+    ]
+  }
+};
+
+const STAGES = ['Submitted','Internal Review','External Review','Editorial Verification','Published'];
+const ROLE_LABEL = {
+  Admin:'System Administrator', ResearchOfficer:'Research Officer', EditorialBoard:'Editorial Board',
+  InternalReviewer:'Internal Reviewer', ExternalReviewer:'External Reviewer', Author:'Author'
+};
+const ALL_ROLES = ['Admin','ResearchOfficer','EditorialBoard','InternalReviewer','ExternalReviewer','Author'];
+
+let ID = {call:3, sub:106, assign:504, comment:702, eb:803, notifId:7, audit:7, user:7, dept:6};
+
+/* ------------------------------- APP STATE -------------------------------- */
+let state = {
+  userId: 'u2',      // current "logged in" mock user
+  page: 'dashboard',  // current page key
+  subtab: null
+};
+
+function currentUser(){ return DB.users.find(u=>u.id===state.userId); }
+function usersByRole(role){ return DB.users.filter(u=>u.roles.includes(role)); }
+function userName(id){ const u=DB.users.find(x=>x.id===id); return u? u.name : id; }
+function callById(id){ return DB.calls.find(c=>c.id===id); }
+function subById(id){ return DB.submissions.find(s=>s.id===id); }
+function initials(name){ return name.split(' ').filter(Boolean).slice(0,2).map(w=>w[0]).join('').toUpperCase(); }
+
+/* -------------------------------- TOASTS ---------------------------------- */
+function toast(msg, kind){
+  const wrap = document.getElementById('toast-wrap');
+  const el = document.createElement('div');
+  el.className = 'toast' + (kind ? ' '+kind : '');
+  el.textContent = msg;
+  wrap.appendChild(el);
+  setTimeout(()=>{ el.style.opacity='0'; el.style.transition='opacity .3s'; setTimeout(()=>el.remove(),300); }, 3200);
+}
+
+/* -------------------------------- MODAL ------------------------------------ */
+function openModal(html){
+  document.getElementById('modal-box').innerHTML = html;
+  document.getElementById('modal-overlay').classList.add('show');
+}
+function closeModal(){ document.getElementById('modal-overlay').classList.remove('show'); }
+
+function reasonModal(title, onConfirm){
+  openModal(`
+    <h3>${title}</h3>
+    <div class="field">
+      <label>Reason (required — will be sent to the relevant actor)</label>
+      <textarea id="reasonInput" placeholder="Explain what needs to be corrected..."></textarea>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="width:auto" id="reasonConfirmBtn">Send back</button>
+    </div>
+  `);
+  document.getElementById('reasonConfirmBtn').onclick = ()=>{
+    const val = document.getElementById('reasonInput').value.trim();
+    if(!val){ toast('Please provide a reason.', 'warn'); return; }
+    closeModal();
+    onConfirm(val);
+  };
+}
+
+/* -------------------------------- NAV CONFIG -------------------------------- */
+const NAV = {
+  Admin: [
+    {group:'Overview', items:[ {key:'dashboard', label:'Dashboard', icon:ICONS.dashboard} ]},
+    {group:'Access control', items:[ {key:'admin-users', label:'User Accounts', icon:ICONS.users} ]},
+    {group:'Master data', items:[
+      {key:'admin-departments', label:'Departments', icon:ICONS.dept},
+      {key:'admin-themes', label:'Research Themes', icon:ICONS.themes},
+      {key:'admin-templates', label:'Templates & Notices', icon:ICONS.templates},
+    ]},
+    {group:'Oversight', items:[
+      {key:'admin-public', label:'Public Repository', icon:ICONS.publicrepo},
+      {key:'admin-audit', label:'Audit Log', icon:ICONS.audit},
+      {key:'notifications', label:'Notifications', icon:ICONS.notif},
+    ]},
+  ],
+  ResearchOfficer: [
+    {group:'Overview', items:[ {key:'dashboard', label:'Dashboard', icon:ICONS.dashboard} ]},
+    {group:'Workspace', items:[
+      {key:'ro-calls', label:'Calls for Papers', icon:ICONS.calls},
+      {key:'ro-assign', label:'Reviewer Assignment', icon:ICONS.assign},
+      {key:'ro-verify', label:'Verification Queue', icon:ICONS.verify},
+    ]},
+    {group:'Insights', items:[
+      {key:'ro-reports', label:'Reports', icon:ICONS.reports},
+      {key:'notifications', label:'Notifications', icon:ICONS.notif},
+    ]},
+  ],
+  EditorialBoard: [
+    {group:'Overview', items:[ {key:'dashboard', label:'Dashboard', icon:ICONS.dashboard} ]},
+    {group:'Workspace', items:[
+      {key:'eb-verify', label:'Verification Queue', icon:ICONS.verify},
+      {key:'eb-publish', label:'Approve for Publishing', icon:'&#9998;'},
+    ]},
+    {group:'Insights', items:[
+      {key:'eb-reports', label:'Reports', icon:ICONS.reports},
+      {key:'notifications', label:'Notifications', icon:ICONS.notif},
+    ]},
+  ],
+  InternalReviewer: [
+    {group:'Overview', items:[ {key:'dashboard', label:'Dashboard', icon:ICONS.dashboard} ]},
+    {group:'Workspace', items:[ {key:'rev-assignments', label:'My Assignments', icon:ICONS.myassign} ]},
+    {group:'', items:[ {key:'notifications', label:'Notifications', icon:ICONS.notif} ]},
+  ],
+  ExternalReviewer: [
+    {group:'Overview', items:[ {key:'dashboard', label:'Dashboard', icon:ICONS.dashboard} ]},
+    {group:'Workspace', items:[ {key:'rev-assignments', label:'My Assignments', icon:ICONS.myassign} ]},
+    {group:'', items:[ {key:'notifications', label:'Notifications', icon:ICONS.notif} ]},
+  ],
+  Author: [
+    {group:'Overview', items:[ {key:'dashboard', label:'Dashboard', icon:ICONS.dashboard} ]},
+    {group:'Workspace', items:[
+      {key:'author-submit', label:'Submit Abstract / Paper', icon:ICONS.submit},
+      {key:'author-mysubs', label:'My Submissions', icon:ICONS.mysubs},
+    ]},
+    {group:'', items:[ {key:'notifications', label:'Notifications', icon:ICONS.notif} ]},
+  ],
+};
+
+/* ------------------------------- MAIN RENDER -------------------------------- */
+function go(page){ state.page = page; state.subtab = null; render(); window.scrollTo(0,0); }
+
+function switchUser(id){
+  state.userId = id;
+  state.page = 'dashboard';
+  render();
+  const roles = DB.users.find(u=>u.id===id).roles.map(r=>ROLE_LABEL[r]).join(', ');
+  toast('Now viewing as ' + userName(id) + ' (' + roles + ')');
+}
+
+function render(){
+  renderSidebar();
+  renderTopbar();
+  renderContent();
+}
+
+function crestSVG(size){
+  return `<svg width="${size}" height="${size}" viewBox="0 0 48 48" class="brand-crest">
+    <rect x="2" y="2" width="44" height="44" rx="6" fill="#fdf6ec" stroke="#c1912f" stroke-width="2"/>
+    <path d="M24 8 L34 13 V23 C34 31 30 36 24 39 C18 36 14 31 14 23 V13 Z" fill="#651019" stroke="#c1912f" stroke-width="1"/>
+    <circle cx="24" cy="20" r="4" fill="#fdf6ec"/>
+    <path d="M18 27 h12 v3 h-12 z" fill="#fdf6ec"/>
+  </svg>`;
+}
+
+function renderSidebar(){
+  const role = currentUser().roles[0]; // primary role for nav
+  const groups = NAV[role] || NAV['Author'];
+  let html = `<div class="brand">${crestSVG(42)}
+    <div class="brand-text"><div class="t1">Publication<br>Management</div><div class="t2">Bank of Uganda</div></div>
+  </div>`;
+
+  groups.forEach(g=>{
+    if(g.group) html += `<div class="nav-group-label">${g.group}</div>`;
+    g.items.forEach(it=>{
+      let badge = '';
+      if(it.key==='notifications'){
+        const n = DB.notifications.filter(x=>x.userId===state.userId && !x.read).length;
+        if(n>0) badge = `<span class="nav-badge">${n}</span>`;
+      }
+      html += `<button class="nav-item ${state.page===it.key?'active':''}" onclick="go('${it.key}')">
+        <span class="ico">${it.icon}</span><span>${it.label}</span>${badge}
+      </button>`;
+    });
+  });
+
+  html += `<div class="sidebar-footer">
+    <div class="role-switcher">
+      <label>Viewing as (demo switch)</label>
+      <select onchange="switchUser(this.value)">
+        ${DB.users.map(u=>`<option value="${u.id}" ${u.id===state.userId?'selected':''}>${u.name} — ${u.roles.map(r=>ROLE_LABEL[r]).join(', ')}</option>`).join('')}
+      </select>
+    </div>
+    <button class="btn-refresh" style="margin-top:10px" onclick="render(); toast('Data refreshed');">&#8635; Refresh data</button>
+  </div>`;
+
+  document.getElementById('sidebar').innerHTML = html;
+}
+
+const PAGE_TITLES = {
+  'dashboard': ['BOU PMS','Dashboard'],
+  'admin-users': ['ACCESS CONTROL','User Accounts'],
+  'admin-departments': ['MASTER DATA','Departments'],
+  'admin-themes': ['MASTER DATA','Research Themes'],
+  'admin-templates': ['MASTER DATA','Templates & Notification Notices'],
+  'admin-public': ['PUBLIC SITE PREVIEW','Public Repository'],
+  'admin-audit': ['OVERSIGHT','Audit Log'],
+  'ro-calls': ['CALLS','Calls for Papers'],
+  'ro-assign': ['REVIEWER ASSIGNMENT','Assign Internal / External Reviewers'],
+  'ro-verify': ['VERIFICATION QUEUE','Verify Comments & Revisions'],
+  'ro-reports': ['INSIGHTS','Reports'],
+  'eb-verify': ['VERIFICATION QUEUE','Assignment & Approval Verification'],
+  'eb-publish': ['FINAL STAGE','Approve for Publishing'],
+  'eb-reports': ['INSIGHTS','Reports'],
+  'rev-assignments': ['REVIEW WORKSPACE','My Assignments'],
+  'author-submit': ['SUBMISSION','Submit Abstract or Working Paper'],
+  'author-mysubs': ['TRACKING','My Submissions'],
+  'notifications': ['ALERTS','Notifications'],
+};
+
+function renderTopbar(){
+  const u = currentUser();
+  const t = PAGE_TITLES[state.page] || ['BOU PMS','Dashboard'];
+  document.getElementById('topbar').innerHTML = `
+    <div class="top-left">
+      <div class="eyebrow">${t[0]}</div>
+      <h1>${t[1]}</h1>
+    </div>
+    <div class="user-badge">
+      <div class="avatar">${initials(u.name)}</div>
+      <div class="user-meta"><div class="name">${u.name}</div><div class="role">${u.roles.map(r=>ROLE_LABEL[r]).join(', ')}</div></div>
+      <button class="btn-logout" onclick="toast('Signed out (demo only — reload to reset)','warn')">Logout</button>
+    </div>
+  `;
+}
+
+function renderContent(){
+  const role = currentUser().roles[0];
+  let html = '';
+  switch(state.page){
+    case 'dashboard': html = pageDashboard(role); break;
+    case 'admin-users': html = pageAdminUsers(); break;
+    case 'admin-departments': html = pageAdminDepartments(); break;
+    case 'admin-themes': html = pageAdminThemes(); break;
+    case 'admin-templates': html = pageAdminTemplates(); break;
+    case 'admin-public': html = pagePublicRepo(true); break;
+    case 'admin-audit': html = pageAuditLog(); break;
+    case 'ro-calls': html = pageCalls(); break;
+    case 'ro-assign': html = pageAssign(); break;
+    case 'ro-verify': html = pageRoVerify(); break;
+    case 'ro-reports': html = pageReports('ResearchOfficer'); break;
+    case 'eb-verify': html = pageEbVerify(); break;
+    case 'eb-publish': html = pageEbPublish(); break;
+    case 'eb-reports': html = pageReports('EditorialBoard'); break;
+    case 'rev-assignments': html = pageReviewerAssignments(role); break;
+    case 'author-submit': html = pageAuthorSubmit(); break;
+    case 'author-mysubs': html = pageAuthorSubs(); break;
+    case 'notifications': html = pageNotifications(); break;
+    default: html = '<div class="empty">Page not found.</div>';
+  }
+  document.getElementById('content').innerHTML = html;
+  if(state.page === 'ro-assign') renderReviewerOptions();
+}
+
+/* ------------------------------ SHARED WIDGETS ------------------------------- */
+function stageBadge(sub){
+  const map = {
+    'Published':'badge-published'
+  };
+  if(sub.status.toLowerCase().includes('revision')) return `<span class="badge badge-revision">${sub.status}</span>`;
+  if(sub.status==='Published') return `<span class="badge badge-published">Published</span>`;
+  if(sub.status.toLowerCase().includes('awaiting')) return `<span class="badge badge-pending">${sub.status}</span>`;
+  return `<span class="badge badge-review">${sub.status}</span>`;
+}
+
+function trackingBar(sub){
+  const revisionFlag = sub.status.toLowerCase().includes('revision');
+  let html = '<div class="tracker">';
+  STAGES.forEach((label,i)=>{
+    let cls = '';
+    if(i < sub.stage) cls='done';
+    else if(i === sub.stage) cls = revisionFlag ? 'blocked' : 'current';
+    html += `<div class="tstep ${cls}"><div class="line"></div><div class="dot">${i<sub.stage?'&#10003;':(i+1)}</div><div class="label">${label}</div></div>`;
+  });
+  html += '</div>';
+  if(revisionFlag){
+    html += `<div class="hint" style="color:var(--warn);margin-top:4px;">&#9888; Revision requested at "${STAGES[sub.stage]}" — author must resubmit to continue.</div>`;
+  }
+  return html;
+}
+
+function callOptions(onlyOpen){
+  return DB.calls.filter(c=> onlyOpen? c.status==='Published' : true)
+    .map(c=>`<option value="${c.id}">FY ${c.fy} — ${c.status}</option>`).join('');
+}
+
+/* --------------------------------- DASHBOARD --------------------------------- */
+function pageDashboard(role){
+  const activeCalls = DB.calls.filter(c=>c.status==='Published').length;
+  const totalSubs = DB.submissions.length;
+  const unread = DB.notifications.filter(n=>n.userId===state.userId && !n.read).length;
+
+  if(role==='Author'){
+    const mine = DB.submissions.filter(s=>s.corresponding.email===currentUser().email);
+    return `
+    <div class="grid grid-3" style="margin-bottom:20px;">
+      ${statCard('Open calls you can submit to', DB.calls.filter(c=>c.status==='Published').length,'Active')}
+      ${statCard('Your submissions', mine.length,'Total')}
+      ${statCard('Unread alerts', unread,'Notifications')}
+    </div>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="eyebrow">Tracking</div>
+        <h2>Recent submissions</h2>
+        <div class="sub">Status of your most recent papers.</div>
+        ${mine.slice(0,3).map(s=>`
+          <div style="margin-bottom:16px;">
+            <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px;">
+              <strong style="font-size:13.5px;">${s.title}</strong> ${stageBadge(s)}
+            </div>
+            ${trackingBar(s)}
+          </div>`).join('') || emptyBox('No submissions yet.')}
+        <button class="btn btn-outline btn-sm" onclick="go('author-mysubs')">View all submissions</button>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Shortcuts</div>
+        <h2>Get started</h2>
+        <div class="sub">Jump straight into a task.</div>
+        <div class="btn-row" style="flex-direction:column;">
+          <button class="btn btn-primary" onclick="go('author-submit')">Submit an abstract or paper</button>
+          <button class="btn btn-outline" style="width:100%;justify-content:center" onclick="go('notifications')">View notifications (${unread})</button>
+        </div>
+      </div>
+    </div>`;
+  }
+
+  if(role==='InternalReviewer' || role==='ExternalReviewer'){
+    const mine = DB.assignments.filter(a=>a.reviewerId===state.userId);
+    const pending = mine.filter(a=>a.status==='Active').length;
+    return `
+    <div class="grid grid-3" style="margin-bottom:20px;">
+      ${statCard('Assigned papers', mine.length,'Total')}
+      ${statCard('Awaiting your review', pending,'Action needed')}
+      ${statCard('Unread alerts', unread,'Notifications')}
+    </div>
+    <div class="card">
+      <div class="eyebrow">Review workspace</div>
+      <h2>Your queue</h2>
+      <div class="sub">Papers assigned to you as ${ROLE_LABEL[role]}.</div>
+      ${mine.length? renderAssignmentTable(mine, false) : emptyBox('No assignments yet.')}
+      <div style="margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="go('rev-assignments')">Go to My Assignments</button></div>
+    </div>`;
+  }
+
+  if(role==='ResearchOfficer'){
+    const pendingAssign = DB.submissions.filter(s=>s.status.includes('Awaiting officer')).length;
+    const pendingVerify = DB.comments.filter(c=>!c.verified).length;
+    return `
+    <div class="grid grid-3" style="margin-bottom:20px;">
+      ${statCard('Active calls', activeCalls,'Open calls authors can submit to')}
+      ${statCard('Submissions', totalSubs,'Visible to your role')}
+      ${statCard('Unread alerts', unread,'Notifications requiring attention')}
+    </div>
+    <div class="grid grid-2">
+      <div class="card">
+        <div class="eyebrow">Workflow</div>
+        <h2>Needs a reviewer assignment</h2>
+        ${DB.submissions.filter(s=>s.status.includes('Awaiting officer')).map(s=>submissionRow(s)).join('') || emptyBox('No submissions found.')}
+        <div style="margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="go('ro-assign')">Go to Reviewer Assignment</button></div>
+      </div>
+      <div class="card">
+        <div class="eyebrow">Review</div>
+        <h2>Verification queue <span class="badge badge-pending" style="margin-left:6px;">${pendingVerify} pending</span></h2>
+        ${DB.comments.filter(c=>!c.verified).map(c=>{
+          const a=DB.assignments.find(x=>x.id===c.assignmentId); const s=subById(a.submissionId);
+          return submissionRow(s,`Comments from ${userName(a.reviewerId)} — ${c.recommendation}`);
+        }).join('') || emptyBox('No reviewer comments pending verification.')}
+        <div style="margin-top:12px;"><button class="btn btn-outline btn-sm" onclick="go('ro-verify')">Go to Verification Queue</button></div>
+      </div>
+    </div>`;
+  }
+
+  if(role==='EditorialBoard'){
+    const pending = DB.ebQueue.filter(e=>e.status==='Pending').length;
+    return `
+    <div class="grid grid-3" style="margin-bottom:20px;">
+      ${statCard('Pending verifications', pending,'Awaiting Editorial Board')}
+      ${statCard('Submissions', totalSubs,'Across all calls')}
+      ${statCard('Unread alerts', unread,'Notifications')}
+    </div>
+    <div class="card">
+      <div class="eyebrow">Review</div>
+      <h2>Verification queue</h2>
+      ${renderEbQueueTable(DB.ebQueue.filter(e=>e.status==='Pending'))}
+      <div style="margin-top:12px;" class="btn-row">
+        <button class="btn btn-outline btn-sm" onclick="go('eb-verify')">Go to Verification Queue</button>
+        <button class="btn btn-outline btn-sm" onclick="go('eb-publish')">Go to Approve for Publishing</button>
+      </div>
+    </div>`;
+  }
+
+  // Admin
+  return `
+  <div class="grid grid-3" style="margin-bottom:20px;">
+    ${statCard('Active calls', activeCalls,'Open calls authors can submit to')}
+    ${statCard('Submissions', totalSubs,'Visible to your role')}
+    ${statCard('Unread alerts', unread,'Notifications requiring attention')}
+  </div>
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Workflow</div>
+      <h2>Recent submissions</h2>
+      ${DB.submissions.slice(-3).reverse().map(s=>submissionRow(s)).join('') || emptyBox('No submissions found.')}
+    </div>
+    <div class="card">
+      <div class="eyebrow">Users</div>
+      <h2>Accounts overview</h2>
+      <div class="kv"><div class="k">Total accounts</div><div class="v">${DB.users.length}</div></div>
+      <div class="kv"><div class="k">Departments</div><div class="v">${DB.departments.length}</div></div>
+      <div class="kv"><div class="k">Active calls</div><div class="v">${activeCalls}</div></div>
+      <div class="kv"><div class="k">Published papers</div><div class="v">${DB.submissions.filter(s=>s.status==='Published').length}</div></div>
+      <div style="margin-top:14px;"><button class="btn btn-outline btn-sm" onclick="go('admin-users')">Manage user accounts</button></div>
+    </div>
+  </div>`;
+}
+
+function statCard(label, num, sub){
+  return `<div class="card stat-card"><div class="stat-label">${label}</div><div class="stat-num">${num}</div><div class="stat-label">${sub}</div></div>`;
+}
+function emptyBox(text){ return `<div class="empty">${text}</div>`; }
+function submissionRow(s, extra){
+  return `<div style="padding:10px 0;border-bottom:1px solid #f2e9da;">
+    <div style="display:flex;justify-content:space-between;gap:8px;">
+      <strong style="font-size:13px;">${s.title}</strong>${stageBadge(s)}
+    </div>
+    <div class="hint">${extra || ('Theme: '+s.theme)}</div>
+  </div>`;
+}
+
+/* =========================================================================
+   ADMIN PAGES
+   ========================================================================= */
+function pageAdminUsers(){
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Access control</div>
+      <h2>Create user account</h2>
+      <div class="sub">This replaces public registration — accounts are created by an authorized role only, per FR-1.5.</div>
+      <div class="field"><label>Full name</label><input id="newName" type="text" placeholder="e.g. Brenda Auma"></div>
+      <div class="field"><label>Email</label><input id="newEmail" type="email" placeholder="e.g. bauma@bou.or.ug"></div>
+      <div class="field"><label>Temporary password</label><input id="newPass" type="text" value="Password123!"></div>
+      <div class="field">
+        <label>Roles (select one or more)</label>
+        <div class="role-checkbox-grid">
+          ${ALL_ROLES.map(r=>`<label><input type="checkbox" value="${r}" checked="${r==='Author'?'checked':''}"> ${ROLE_LABEL[r]}</label>`).join('')}
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="createUser()">Create account</button>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Users</div>
+      <h2>Current accounts</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Roles</th><th>Status</th><th></th></tr></thead>
+          <tbody>
+            ${DB.users.map(u=>`<tr>
+              <td>${u.id}</td><td>${u.name}</td><td>${u.email}</td>
+              <td>${u.roles.map(r=>`<span class="badge badge-role">${ROLE_LABEL[r]}</span>`).join(' ')}</td>
+              <td>${u.status==='Active'?'<span class="badge badge-open">Active</span>':'<span class="badge badge-closed">Deactivated</span>'}</td>
+              <td class="row-actions">
+                <button class="btn btn-outline btn-sm" onclick="editUserRoles('${u.id}')">Edit roles</button>
+                <button class="btn btn-outline btn-sm" onclick="resetPassword('${u.id}')">Reset password</button>
+                <button class="btn ${u.status==='Active'?'btn-danger-outline':'btn-success-outline'} btn-sm" onclick="toggleUserStatus('${u.id}')">${u.status==='Active'?'Deactivate':'Activate'}</button>
+              </td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+
+function createUser(){
+  const name = document.getElementById('newName').value.trim();
+  const email = document.getElementById('newEmail').value.trim();
+  const pass = document.getElementById('newPass').value.trim();
+  const checks = document.querySelectorAll('#modal-box .role-checkbox-grid input[type=checkbox]:checked');
+  const roles = Array.from(checks).map(cb=>cb.value);
+  if(!name || !email){ toast('Full name and email are required.','warn'); return; }
+  if(roles.length===0){ toast('Select at least one role.','warn'); return; }
+  const id = 'u'+(ID.user++);
+  DB.users.push({id, name, email, roles, status:'Active'});
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Created account for ${name} (${roles.map(r=>ROLE_LABEL[r]).join(', ')})`, date:'15 Jul 2026', outcome:'Success'});
+  toast('Account created for '+name+'. Temporary password: '+pass,'success');
+  go('admin-users');
+}
+
+function editUserRoles(userId){
+  const u = DB.users.find(x=>x.id===userId);
+  const checkboxes = ALL_ROLES.map(r => {
+    const checked = u.roles.includes(r) ? 'checked' : '';
+    return `<label><input type="checkbox" value="${r}" ${checked}> ${ROLE_LABEL[r]}</label>`;
+  }).join('');
+  openModal(`
+    <h3>Edit roles for ${u.name}</h3>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:8px;">Assign or revoke roles. A user can hold multiple roles.</p>
+    <div class="role-checkbox-grid">${checkboxes}</div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="width:auto" onclick="saveUserRoles('${userId}')">Save roles</button>
+    </div>
+  `);
+}
+function saveUserRoles(userId){
+  const u = DB.users.find(x=>x.id===userId);
+  const checks = document.querySelectorAll('#modal-box .role-checkbox-grid input[type=checkbox]:checked');
+  const newRoles = Array.from(checks).map(cb=>cb.value);
+  if(newRoles.length===0){ toast('User must have at least one role.','warn'); return; }
+  u.roles = newRoles;
+  closeModal();
+  toast(`Roles updated for ${u.name}.`,'success');
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Updated roles for ${u.name}`, date:'15 Jul 2026', outcome:'Success'});
+  go('admin-users');
+}
+
+function resetPassword(id){
+  const u = DB.users.find(x=>x.id===id);
+  toast(`Password reset for ${u.name}. New temporary password issued.`,'success');
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Reset password for ${u.name}`, date:'15 Jul 2026', outcome:'Success'});
+}
+function toggleUserStatus(id){
+  const u = DB.users.find(x=>x.id===id);
+  u.status = u.status==='Active' ? 'Deactivated' : 'Active';
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`${u.status==='Active'?'Activated':'Deactivated'} account for ${u.name}`, date:'15 Jul 2026', outcome:'Success'});
+  toast(`${u.name} ${u.status==='Active'?'reactivated':'deactivated'}.`);
+  go('admin-users');
+}
+
+function pageAdminDepartments(){ /* same as before */ 
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Master data</div>
+      <h2>Departments</h2>
+      <div class="sub">Populates the department drop-down for BOU-staff co-authors (FR-3.2).</div>
+      <div class="field"><label>Department name</label><input id="deptName" type="text" placeholder="e.g. Legal Department"></div>
+      <button class="btn btn-primary" onclick="addDepartment()">Add department</button>
+      <div class="divider"></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>ID</th><th>Department name</th><th></th></tr></thead>
+          <tbody>${DB.departments.map(d=>`<tr>
+            <td>${d.id}</td>
+            <td id="deptname-${d.id}">${d.name}</td>
+            <td class="row-actions">
+              <button class="btn btn-outline btn-sm" onclick="editDepartment(${d.id})">Edit</button>
+              <button class="btn btn-danger-outline btn-sm" onclick="deleteDepartment(${d.id})">Delete</button>
+            </td>
+          </tr>`).join('')}</tbody>
+        </table>
+      </div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Research setup</div>
+      <h2>Theme ownership</h2>
+      <div class="sub">Themes are added by the Research Officer while creating a Call for Papers, keeping themes tied to the correct call. The Administrator can still deactivate a theme system-wide if it was created in error (FR-3.1).</div>
+      <button class="btn btn-outline" style="width:100%;justify-content:center" onclick="go('admin-themes')">Go to Research Themes</button>
+    </div>
+  </div>`;
+}
+function addDepartment(){
+  const name = document.getElementById('deptName').value.trim();
+  if(!name){ toast('Enter a department name.','warn'); return; }
+  DB.departments.push({id:ID.dept++, name});
+  toast('Department added.','success');
+  go('admin-departments');
+}
+function editDepartment(id){
+  const d = DB.departments.find(x=>x.id===id);
+  openModal(`
+    <h3>Edit department</h3>
+    <div class="field"><label>Department name</label><input id="editDeptName" type="text" value="${d.name}"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="width:auto" onclick="saveDepartment(${id})">Save changes</button>
+    </div>
+  `);
+}
+function saveDepartment(id){
+  const val = document.getElementById('editDeptName').value.trim();
+  if(!val){ toast('Name cannot be empty.','warn'); return; }
+  const d = DB.departments.find(x=>x.id===id);
+  d.name = val;
+  closeModal();
+  toast('Department updated.','success');
+  go('admin-departments');
+}
+function deleteDepartment(id){
+  const d = DB.departments.find(x=>x.id===id);
+  openModal(`
+    <h3>Delete department?</h3>
+    <p style="font-size:13.5px;">This will remove "<strong>${d.name}</strong>" from the department list used on co-author forms. This cannot be undone.</p>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="width:auto;background:var(--danger)" onclick="confirmDeleteDept(${id})">Delete</button>
+    </div>
+  `);
+}
+function confirmDeleteDept(id){
+  DB.departments = DB.departments.filter(x=>x.id!==id);
+  closeModal();
+  toast('Department deleted.');
+  go('admin-departments');
+}
+
+function pageAdminThemes(){ /* same */ 
+  const rows = [];
+  DB.calls.forEach(c=> c.themes.forEach(t=> rows.push({theme:t, call:c})));
+  return `
+  <div class="card">
+    <div class="eyebrow">Master data</div>
+    <h2>Research themes</h2>
+    <div class="sub">Themes are created by the Research Officer per Call for Papers (see Calls for Papers). The Administrator can deactivate a theme here if needed, without editing call content.</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Theme</th><th>Belongs to call</th><th>Status</th><th></th></tr></thead>
+        <tbody>${rows.map((r,i)=>`<tr>
+          <td>${r.theme}</td><td>FY ${r.call.fy}</td>
+          <td><span class="badge badge-open">Active</span></td>
+          <td><button class="btn btn-outline btn-sm" onclick="toast('Theme flagged as deactivated (demo only).','warn')">Deactivate</button></td>
+        </tr>`).join('') || `<tr><td colspan="4">No themes yet — created via Research Officer &gt; Create Call for Papers.</td></tr>`}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function pageAdminTemplates(){ /* same */ 
+  const t = DB.templates;
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Master data</div>
+      <h2>Reviewer templates</h2>
+      <div class="sub">Attached automatically whenever a paper is sent out for review (FR-3.3).</div>
+      <div class="file-chip"><div class="fico">DOC</div><div style="flex:1;"><strong>${t.commentTemplate.name}</strong><div class="hint">Version ${t.commentTemplate.version} · updated ${t.commentTemplate.updated}</div></div>
+        <button class="btn btn-outline btn-sm" onclick="uploadNewVersion('commentTemplate')">Upload new version</button></div>
+      <div class="file-chip"><div class="fico">PDF</div><div style="flex:1;"><strong>${t.guidelines.name}</strong><div class="hint">Version ${t.guidelines.version} · updated ${t.guidelines.updated}</div></div>
+        <button class="btn btn-outline btn-sm" onclick="uploadNewVersion('guidelines')">Upload new version</button></div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Master data</div>
+      <h2>Notification notices</h2>
+      <div class="sub">Edit the wording of automated e-mail / in-app notifications (FR-3.4).</div>
+      ${t.notifTemplates.map(nt=>`
+        <div style="padding:10px 0;border-bottom:1px solid #f2e9da;">
+          <div style="display:flex;justify-content:space-between;align-items:center;"><strong style="font-size:13px;">${nt.name}</strong>
+          <button class="btn btn-outline btn-sm" onclick="editNotifTemplate('${nt.key}')">Edit</button></div>
+          <div class="hint">${nt.body}</div>
+        </div>`).join('')}
+    </div>
+  </div>`;
+}
+function uploadNewVersion(key){
+  const t = DB.templates[key];
+  t.version += 1;
+  t.updated = '15 Jul 2026';
+  toast(`${t.name} updated to version ${t.version}.`,'success');
+  go('admin-templates');
+}
+function editNotifTemplate(key){
+  const nt = DB.templates.notifTemplates.find(x=>x.key===key);
+  openModal(`
+    <h3>Edit notice — ${nt.name}</h3>
+    <div class="field"><label>Message body</label><textarea id="notifBody" style="min-height:110px;">${nt.body}</textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="width:auto" onclick="saveNotifTemplate('${key}')">Save changes</button>
+    </div>
+  `);
+}
+function saveNotifTemplate(key){
+  const nt = DB.templates.notifTemplates.find(x=>x.key===key);
+  nt.body = document.getElementById('notifBody').value;
+  closeModal();
+  toast('Notice updated.','success');
+  go('admin-templates');
+}
+
+function pageAuditLog(){ /* same */ 
+  return `
+  <div class="card">
+    <div class="eyebrow">Oversight</div>
+    <h2>Audit log</h2>
+    <div class="sub">Tamper-evident record of key actions: submission, assignment, approval, rejection, publishing, login (NFR-4).</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>User</th><th>Action</th><th>Timestamp</th><th>Outcome</th></tr></thead>
+        <tbody>${DB.auditLog.map(a=>`<tr>
+          <td>${a.user}</td><td>${a.action}</td><td>${a.date}</td>
+          <td>${a.outcome.startsWith('Success')?'<span class="badge badge-open">Success</span>':'<span class="badge badge-rejected">'+a.outcome+'</span>'}</td>
+        </tr>`).join('')}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+/* =========================================================================
+   PUBLIC REPOSITORY (FR-8.4)
+   ========================================================================= */
+function pagePublicRepo(insideApp){
+  const published = DB.submissions.filter(s=>s.status==='Published');
+  const inner = `
+    <div class="card">
+      <div class="eyebrow">Public site preview</div>
+      <h2>BOU Working Paper Series</h2>
+      <div class="sub">This is what visitors of the public BOU Working Paper Series page see — no login required.</div>
+      ${published.map(s=>`
+        <div class="paper-card">
+          <h4>${s.title}</h4>
+          <div class="paper-meta">${s.pubRef} · Published ${s.pubDate} · Theme: ${s.theme}</div>
+          <div class="paper-meta">Authors: ${s.corresponding.name}${s.coAuthors.length? ', '+s.coAuthors.map(a=>a.name).join(', ') : ''}</div>
+          <button class="btn btn-outline btn-sm" onclick="toast('Downloading working paper PDF (demo only)')">Download PDF</button>
+        </div>`).join('') || emptyBox('No papers published yet.')}
+    </div>`;
+  return inner;
+}
+
+/* =========================================================================
+   RESEARCH OFFICER PAGES (unchanged, except we keep themes)
+   ========================================================================= */
+function pageCalls(){ /* same as before */ 
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Calls</div>
+      <h2>Create call for papers</h2>
+      <div class="row-2">
+        <div class="field"><label>Fiscal year</label><input id="callFy" type="text" placeholder="2027/2028"></div>
+        <div class="field"><label>Abstract deadline</label><input id="callAbsDl" type="date"></div>
+      </div>
+      <div class="field"><label>Paper deadline</label><input id="callPaperDl" type="date"></div>
+      <div class="field"><label>Description</label><textarea id="callDesc" placeholder="Describe the call"></textarea></div>
+      <div class="field"><label>Themes, one per line</label><textarea id="callThemes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea></div>
+      <button class="btn btn-primary" onclick="createCall()">Create draft call</button>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Calls</div>
+      <h2>Manage calls</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>FY</th><th>Themes</th><th>Abstract deadline</th><th>Paper deadline</th><th>Status</th><th></th></tr></thead>
+          <tbody>${DB.calls.map(c=>`<tr>
+            <td>${c.fy}</td><td>${c.themes.join(', ')}</td><td>${c.abstractDeadline}</td><td>${c.paperDeadline}</td>
+            <td>${c.status==='Published'?'<span class="badge badge-open">Published</span>': c.status==='Draft'?'<span class="badge badge-draft">Draft</span>':'<span class="badge badge-closed">Closed</span>'}</td>
+            <td class="row-actions">
+              ${c.status==='Draft'?`<button class="btn btn-outline btn-sm" onclick="publishCall(${c.id})">Publish</button>`:''}
+              ${c.status==='Published'?`<button class="btn btn-outline btn-sm" onclick="editCallDeadline(${c.id})">Edit deadline</button><button class="btn btn-danger-outline btn-sm" onclick="closeCall(${c.id})">Close</button>`:''}
+            </td>
+          </tr>`).join('') || `<tr><td colspan="6">No calls have been created.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+function createCall(){
+  const fy = document.getElementById('callFy').value.trim();
+  const absDl = document.getElementById('callAbsDl').value;
+  const paperDl = document.getElementById('callPaperDl').value;
+  const desc = document.getElementById('callDesc').value.trim();
+  const themes = document.getElementById('callThemes').value.split('\n').map(t=>t.trim()).filter(Boolean);
+  if(!fy || !absDl || !paperDl || themes.length===0){ toast('Fill in fiscal year, both deadlines, and at least one theme.','warn'); return; }
+  DB.calls.push({id:ID.call++, fy, description:desc, themes, abstractDeadline:absDl, paperDeadline:paperDl, status:'Draft'});
+  toast('Draft call created. Publish it to make it visible to authors.','success');
+  go('ro-calls');
+}
+function publishCall(id){
+  const c = DB.calls.find(x=>x.id===id); c.status='Published';
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Published Call for Papers FY${c.fy}`, date:'15 Jul 2026', outcome:'Success'});
+  toast('Call published — now visible to authors.','success'); go('ro-calls');
+}
+function closeCall(id){
+  const c = DB.calls.find(x=>x.id===id); c.status='Closed';
+  toast('Call closed to further submissions.'); go('ro-calls');
+}
+function editCallDeadline(id){
+  const c = DB.calls.find(x=>x.id===id);
+  openModal(`
+    <h3>Edit paper deadline — FY ${c.fy}</h3>
+    <div class="field"><label>New paper deadline</label><input id="editDl" type="date" value="${c.paperDeadline}"></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="width:auto" onclick="saveCallDeadline(${id})">Save</button>
+    </div>`);
+}
+function saveCallDeadline(id){
+  const c = DB.calls.find(x=>x.id===id);
+  c.paperDeadline = document.getElementById('editDl').value || c.paperDeadline;
+  closeModal(); toast('Deadline updated.','success'); go('ro-calls');
+}
+
+function pageAssign(){ /* same */ 
+  const open = DB.submissions.filter(s=> !['Published'].includes(s.status));
+  const internalReviewers = usersByRole('InternalReviewer');
+  const externalReviewers = usersByRole('ExternalReviewer');
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Reviewer assignment</div>
+      <h2>Assign internal or external reviewer</h2>
+      <div class="field">
+        <label>Submission</label>
+        <select id="assignSub" onchange="renderReviewerOptions()">
+          <option value="">Select submission</option>
+          ${open.map(s=>`<option value="${s.id}">${s.title}</option>`).join('')}
+        </select>
+      </div>
+      <div class="row-2">
+        <div class="field">
+          <label>Reviewer type</label>
+          <select id="assignType" onchange="renderReviewerOptions()">
+            <option value="Internal">Internal reviewer</option>
+            <option value="External">External reviewer</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Reviewer</label>
+          <select id="assignReviewer"></select>
+        </div>
+      </div>
+      <div id="coiWarning"></div>
+      <button class="btn btn-primary" onclick="assignReviewer()">Send to Editorial Board</button>
+      <div class="hint">Assignment first requires Editorial Board verification (per the process flow) before the reviewer can begin.</div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Assignment log</div>
+      <h2>Recent assignments</h2>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Submission</th><th>Reviewer</th><th>Type</th><th>Status</th></tr></thead>
+          <tbody>${DB.assignments.slice().reverse().map(a=>`<tr>
+            <td>${subById(a.submissionId).title}</td><td>${userName(a.reviewerId)}</td><td>${a.type}</td>
+            <td>${a.status.includes('pending')?'<span class="badge badge-pending">'+a.status+'</span>':(a.status==='Active'?'<span class="badge badge-review">Active</span>':a.status)}</td>
+          </tr>`).join('') || `<tr><td colspan="4">No assignments yet.</td></tr>`}</tbody>
+        </table>
+      </div>
+    </div>
+  </div>`;
+}
+function renderReviewerOptions(){
+  const type = document.getElementById('assignType').value;
+  const list = type==='Internal' ? usersByRole('InternalReviewer') : usersByRole('ExternalReviewer');
+  document.getElementById('assignReviewer').innerHTML = list.map(u=>`<option value="${u.id}">${u.name} (${u.email})</option>`).join('') || '<option>No reviewers of this type</option>';
+  checkCOI();
+}
+function checkCOI(){
+  const subId = document.getElementById('assignSub').value;
+  const revId = document.getElementById('assignReviewer').value;
+  const box = document.getElementById('coiWarning');
+  if(!subId || !revId){ box.innerHTML=''; return; }
+  const sub = subById(Number(subId));
+  const rev = DB.users.find(u=>u.id===revId);
+  const emails = [sub.corresponding.email, ...sub.coAuthors.map(a=>a.email)];
+  if(rev && emails.includes(rev.email)){
+    box.innerHTML = `<div class="flag-box">&#9888; Conflict of interest: ${rev.name}'s e-mail matches an author on this submission (FR-7.7). Choose a different reviewer.</div>`;
+  } else {
+    box.innerHTML = `<div class="ok-box">&#10003; No conflict of interest detected against author/co-author e-mails.</div>`;
+  }
+}
+document.addEventListener('change', (e)=>{
+  if(e.target && (e.target.id==='assignSub' || e.target.id==='assignReviewer')) checkCOI();
+});
+function assignReviewer(){
+  const subId = Number(document.getElementById('assignSub').value);
+  const type = document.getElementById('assignType').value;
+  const revId = document.getElementById('assignReviewer').value;
+  if(!subId || !revId){ toast('Select a submission and reviewer.','warn'); return; }
+  const sub = subById(subId);
+  const rev = DB.users.find(u=>u.id===revId);
+  const emails = [sub.corresponding.email, ...sub.coAuthors.map(a=>a.email)];
+  const coi = emails.includes(rev.email);
+  if(coi){ toast('Cannot assign — conflict of interest detected.','danger'); return; }
+  const assignment = {id:ID.assign++, submissionId:subId, reviewerId:revId, type, status:'Pending Editorial Board verification', assignedBy:state.userId, coi:false};
+  DB.assignments.push(assignment);
+  DB.ebQueue.push({id:ID.eb++, kind:`${type} reviewer assignment`, submissionId:subId, refId:assignment.id, status:'Pending'});
+  sub.status = 'Awaiting Editorial Board verification of reviewer assignment';
+  notify(usersByRole('EditorialBoard').map(u=>u.id), `${type} reviewer assignment for "${sub.title}" is awaiting your verification.`);
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Assigned ${type} reviewer (${rev.name}) — ${sub.title}`, date:'15 Jul 2026', outcome:'Success'});
+  toast('Sent to Editorial Board for verification.','success');
+  go('ro-assign');
+}
+
+function pageRoVerify(){ /* same */ 
+  const pendingComments = DB.comments.filter(c=>!c.verified);
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Officer verification</div>
+      <h2>Review comments and submission status</h2>
+      <div class="sub">Verify reviewer comments before they move forward, or send back for correction.</div>
+      ${pendingComments.map(c=>{
+        const a = DB.assignments.find(x=>x.id===c.assignmentId);
+        const sub = subById(a.submissionId);
+        return `<div style="padding:14px 0;border-bottom:1px solid #f2e9da;">
+          <div style="display:flex;justify-content:space-between;align-items:center;">
+            <strong style="font-size:13.5px;">${sub.title}</strong>
+            <span class="badge badge-revision">${c.recommendation}</span>
+          </div>
+          <div class="hint">${a.type} reviewer: ${userName(a.reviewerId)} · submitted ${c.submittedAt}</div>
+          <p style="font-size:13px;margin:8px 0;">${c.text}</p>
+          <div class="btn-row">
+            <button class="btn btn-success-outline btn-sm" onclick="verifyComment(${c.id}, true)">Verify &amp; proceed</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="verifyComment(${c.id}, false)">Return to reviewer</button>
+          </div>
+        </div>`;
+      }).join('') || emptyBox('No reviewer comments pending verification.')}
+    </div>
+    <div class="card">
+      <div class="eyebrow">Officer verification</div>
+      <h2>Revised working papers</h2>
+      <div class="sub">Verify a revised paper before it proceeds to external review or the Editorial Board.</div>
+      ${DB.submissions.filter(s=>s.status==='Revised paper submitted — pending officer verification').map(s=>`
+        <div style="padding:12px 0;border-bottom:1px solid #f2e9da;">
+          <strong style="font-size:13.5px;">${s.title}</strong>
+          <div class="btn-row" style="margin-top:8px;">
+            <button class="btn btn-success-outline btn-sm" onclick="verifyRevision(${s.id}, true)">Verify &amp; proceed</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="verifyRevision(${s.id}, false)">Return to author</button>
+          </div>
+        </div>`).join('') || emptyBox('No revised working papers pending verification.')}
+    </div>
+  </div>`;
+}
+function verifyComment(cid, approve){
+  const c = DB.comments.find(x=>x.id===cid);
+  const a = DB.assignments.find(x=>x.id===c.assignmentId);
+  const sub = subById(a.submissionId);
+  if(approve){
+    c.verified = true;
+    DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Verified ${a.type.toLowerCase()} reviewer comments — ${sub.title}`, date:'15 Jul 2026', outcome:'Success'});
+    if(c.recommendation==='Accept'){
+      if(a.type==='Internal'){ sub.status = 'Awaiting officer review / reviewer assignment'; }
+      else { sub.status = 'Awaiting Editorial Board final verification'; }
+      notify([sub.corresponding.email===currentUser().email?state.userId:'u6'], `Reviewer comments verified for "${sub.title}".`);
+    } else {
+      sub.status = 'Revision requested';
+      notify(DB.users.filter(u=>u.email===sub.corresponding.email).map(u=>u.id), `Reviewer comments are available for "${sub.title}" — ${c.recommendation.toLowerCase()} requested.`);
+    }
+    toast('Comments verified.','success');
+  } else {
+    reasonModal('Return comments to reviewer', (reason)=>{
+      notify([a.reviewerId], `Your comments on "${sub.title}" were returned by the Research Officer: ${reason}`);
+      toast('Sent back to reviewer for correction.','warn');
+      go('ro-verify');
+    });
+    return;
+  }
+  go('ro-verify');
+}
+function verifyRevision(subId, approve){
+  const sub = subById(subId);
+  if(approve){
+    sub.status = 'Awaiting officer review / reviewer assignment';
+    sub.history.push('Revised paper verified by Research Officer 15 Jul 2026');
+    toast('Revised paper verified — ready for next review stage.','success');
+  } else {
+    reasonModal('Return revised paper to author', (reason)=>{
+      notify(DB.users.filter(u=>u.email===sub.corresponding.email).map(u=>u.id), `Your revised paper "${sub.title}" was returned: ${reason}`);
+      toast('Sent back to author.','warn');
+      go('ro-verify');
+    });
+    return;
+  }
+  go('ro-verify');
+}
+
+function pageReports(role){ /* same */ 
+  const byStatus = {};
+  DB.submissions.forEach(s=>{ byStatus[s.status] = (byStatus[s.status]||0)+1; });
+  const workload = {};
+  DB.assignments.forEach(a=>{ workload[a.reviewerId] = (workload[a.reviewerId]||0)+1; });
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Reporting</div>
+      <h2>Submissions by status</h2>
+      <div class="sub">Per FR-9.1 — pipeline health across all calls.</div>
+      <div class="table-wrap"><table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>
+        ${Object.entries(byStatus).map(([k,v])=>`<tr><td>${k}</td><td>${v}</td></tr>`).join('')}
+      </tbody></table></div>
+      <div class="btn-row" style="margin-top:14px;">
+        <button class="btn btn-outline btn-sm" onclick="toast('Exporting dashboard to Excel (demo only)')">Export to Excel</button>
+        <button class="btn btn-outline btn-sm" onclick="toast('Exporting dashboard to PDF (demo only)')">Export to PDF</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Reporting</div>
+      <h2>Reviewer workload</h2>
+      <div class="sub">How many papers are currently assigned to each reviewer (FR-9.2).</div>
+      <div class="table-wrap"><table><thead><tr><th>Reviewer</th><th>Assigned papers</th></tr></thead><tbody>
+        ${Object.entries(workload).map(([k,v])=>`<tr><td>${userName(k)}</td><td>${v}</td></tr>`).join('') || '<tr><td colspan="2">No assignments yet.</td></tr>'}
+      </tbody></table></div>
+      <div class="divider"></div>
+      <div class="eyebrow">Turnaround</div>
+      <h2 style="font-size:16px;">Average time per stage</h2>
+      <div class="kv"><div class="k">Submission &rarr; Internal review assigned</div><div class="v">2.1 days</div></div>
+      <div class="kv"><div class="k">Internal review &rarr; Comments verified</div><div class="v">6.4 days</div></div>
+      <div class="kv"><div class="k">External review &rarr; Comments verified</div><div class="v">9.8 days</div></div>
+      <div class="kv"><div class="k">Editorial verification &rarr; Published</div><div class="v">3.2 days</div></div>
+      <div class="hint">Illustrative figures for FR-9.3 (turnaround-time reporting to identify bottlenecks).</div>
+    </div>
+  </div>`;
+}
+
+/* =========================================================================
+   EDITORIAL BOARD PAGES (unchanged)
+   ========================================================================= */
+function renderEbQueueTable(items){
+  if(!items.length) return emptyBox('No assignments found.');
+  return `<div class="table-wrap"><table><thead><tr><th>Kind</th><th>Submission</th><th>Status</th></tr></thead><tbody>
+    ${items.map(e=>`<tr><td>${e.kind}</td><td>${subById(e.submissionId).title}</td><td><span class="badge badge-pending">${e.status}</span></td></tr>`).join('')}
+  </tbody></table></div>`;
+}
+function pageEbVerify(){ /* same */ 
+  const pending = DB.ebQueue.filter(e=>e.status==='Pending');
+  const officerApprovals = DB.submissions.filter(s=>s.status==='Awaiting Editorial Board final verification');
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Verification queue</div>
+      <h2>Reviewer assignments</h2>
+      <div class="sub">Verify the Research Officer's internal / external reviewer assignment before the reviewer can begin (per process flow).</div>
+      ${pending.map(e=>`
+        <div style="padding:12px 0;border-bottom:1px solid #f2e9da;">
+          <strong style="font-size:13.5px;">${e.kind}</strong> — ${subById(e.submissionId).title}
+          <div class="btn-row" style="margin-top:8px;">
+            <button class="btn btn-success-outline btn-sm" onclick="ebVerifyAssignment(${e.id}, true)">Approve</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="ebVerifyAssignment(${e.id}, false)">Return with reason</button>
+          </div>
+        </div>`).join('') || emptyBox('No reviewer assignments pending verification.')}
+    </div>
+    <div class="card">
+      <div class="eyebrow">Verification queue</div>
+      <h2>Officer's approval</h2>
+      <div class="sub">Verify the Research Officer's overall approval of a submission at this checkpoint.</div>
+      ${officerApprovals.map(s=>`
+        <div style="padding:12px 0;border-bottom:1px solid #f2e9da;">
+          <strong style="font-size:13.5px;">${s.title}</strong>
+          <div class="btn-row" style="margin-top:8px;">
+            <button class="btn btn-success-outline btn-sm" onclick="ebVerifyOfficerApproval(${s.id}, true)">Approve</button>
+            <button class="btn btn-danger-outline btn-sm" onclick="ebVerifyOfficerApproval(${s.id}, false)">Return with reason</button>
+          </div>
+        </div>`).join('') || emptyBox('No officer approvals pending verification.')}
+    </div>
+  </div>`;
+}
+function ebVerifyAssignment(eid, approve){
+  const e = DB.ebQueue.find(x=>x.id===eid);
+  const a = DB.assignments.find(x=>x.id===e.refId);
+  const sub = subById(e.submissionId);
+  if(approve){
+    e.status='Verified'; a.status='Active';
+    sub.status = `Awaiting ${a.type.toLowerCase()} reviewer comments`;
+    notify([a.reviewerId], `You have been assigned to review "${sub.title}".`);
+    DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Approved ${e.kind} — ${sub.title}`, date:'15 Jul 2026', outcome:'Success'});
+    toast('Assignment approved — reviewer notified.','success');
+    go('eb-verify');
+  } else {
+    reasonModal('Return assignment to Research Officer', (reason)=>{
+      e.status='Returned';
+      sub.status = 'Awaiting officer review / reviewer assignment';
+      notify(usersByRole('ResearchOfficer').map(u=>u.id), `${e.kind} for "${sub.title}" was returned by the Editorial Board: ${reason}`);
+      toast('Sent back to Research Officer.','warn');
+      go('eb-verify');
+    });
+  }
+}
+function ebVerifyOfficerApproval(subId, approve){
+  const sub = subById(subId);
+  if(approve){
+    sub.status = 'Ready for final Editorial Board approval';
+    toast('Officer approval verified. Ready for final publishing decision.','success');
+  } else {
+    reasonModal('Return to Research Officer', (reason)=>{
+      notify(usersByRole('ResearchOfficer').map(u=>u.id), `Approval for "${sub.title}" was returned: ${reason}`);
+      toast('Returned to Research Officer.','warn');
+      go('eb-verify');
+    });
+    return;
+  }
+  go('eb-verify');
+}
+function pageEbPublish(){ /* same */ 
+  const ready = DB.submissions.filter(s=>s.status==='Ready for final Editorial Board approval');
+  return `
+  <div class="card">
+    <div class="eyebrow">Final stage</div>
+    <h2>Approve for publishing</h2>
+    <div class="sub">Confirms that all required stages (internal review, revisions, external review) are complete, per FR-8.2 / FR-8.3.</div>
+    ${ready.map(s=>`
+      <div style="padding:14px 0;border-bottom:1px solid #f2e9da;">
+        <strong style="font-size:14px;">${s.title}</strong>
+        <div class="hint">Corresponding author: ${s.corresponding.name} · Theme: ${s.theme}</div>
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-success-outline btn-sm" onclick="approvePublish(${s.id})">Approve for publishing</button>
+          <button class="btn btn-danger-outline btn-sm" onclick="rejectPublish(${s.id})">Reject with reason</button>
+        </div>
+      </div>`).join('') || emptyBox('No submissions ready for final approval.')}
+  </div>`;
+}
+function approvePublish(subId){
+  const sub = subById(subId);
+  sub.status='Published'; sub.stage=4;
+  sub.pubRef = 'BOU-WP-2026-0'+subId;
+  sub.pubDate = '15 Jul 2026';
+  sub.history.push('Published 15 Jul 2026');
+  notify(DB.users.filter(u=>u.email===sub.corresponding.email).map(u=>u.id), `"${sub.title}" has been published as ${sub.pubRef}.`);
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Approved for publishing — ${sub.title} (${sub.pubRef})`, date:'15 Jul 2026', outcome:'Success'});
+  toast('Published! Now visible in the public repository.','success');
+  go('eb-publish');
+}
+function rejectPublish(subId){
+  const sub = subById(subId);
+  reasonModal('Reject and return', (reason)=>{
+    sub.status = 'Awaiting officer review / reviewer assignment';
+    notify(usersByRole('ResearchOfficer').map(u=>u.id), `Final publishing of "${sub.title}" was rejected: ${reason}`);
+    toast('Returned to Research Officer.','warn');
+    go('eb-publish');
+  });
+}
+
+/* =========================================================================
+   REVIEWER PAGES (unchanged)
+   ========================================================================= */
+function renderAssignmentTable(list, withActions){
+  return `<div class="table-wrap"><table><thead><tr><th>Paper</th><th>Type</th><th>Status</th>${withActions?'<th></th>':''}</tr></thead><tbody>
+    ${list.map(a=>`<tr><td>${subById(a.submissionId).title}</td><td>${a.type}</td>
+      <td>${a.status==='Active'?'<span class="badge badge-pending">Awaiting your review</span>':'<span class="badge badge-review">'+a.status+'</span>'}</td>
+      ${withActions?`<td>${a.status==='Active'?`<button class="btn btn-outline btn-sm" onclick="openReviewForm(${a.id})">Review</button>`:'—'}</td>`:''}
+    </tr>`).join('')}
+  </tbody></table></div>`;
+}
+function pageReviewerAssignments(role){ /* same */ 
+  const mine = DB.assignments.filter(a=>a.reviewerId===state.userId);
+  return `
+  <div class="card">
+    <div class="eyebrow">Review workspace</div>
+    <h2>My assignments</h2>
+    <div class="sub">Papers assigned to you together with the standard Reviewer Comments Template and Reviewer Guidelines (FR-6.3 / FR-7.4).</div>
+    <div class="btn-row" style="margin-bottom:14px;">
+      <button class="btn btn-outline btn-sm" onclick="toast('Downloading Reviewer_Comments_Template_v2.docx (demo only)')">Download comment template</button>
+      <button class="btn btn-outline btn-sm" onclick="toast('Downloading Reviewer_Guidelines_v3.pdf (demo only)')">Download guidelines</button>
+    </div>
+    ${renderAssignmentTable(mine, true)}
+    <div id="reviewFormSlot"></div>
+  </div>`;
+}
+function openReviewForm(aid){
+  const a = DB.assignments.find(x=>x.id===aid);
+  const sub = subById(a.submissionId);
+  document.getElementById('reviewFormSlot').innerHTML = `
+    <div class="divider"></div>
+    <h3 style="font-size:15px;margin-bottom:10px;">Submit review — ${sub.title}</h3>
+    <div class="field">
+      <label>Recommendation</label>
+      <select id="recSelect">
+        <option>Accept</option><option>Minor Revision</option><option>Major Revision</option><option>Reject</option>
+      </select>
+    </div>
+    <div class="field"><label>Comments (using the standard template)</label><textarea id="revComments" placeholder="Enter your review comments..."></textarea></div>
+    <button class="btn btn-primary" onclick="submitReview(${aid})">Submit comments to Research Officer</button>
+  `;
+}
+function submitReview(aid){
+  const a = DB.assignments.find(x=>x.id===aid);
+  const sub = subById(a.submissionId);
+  const rec = document.getElementById('recSelect').value;
+  const text = document.getElementById('revComments').value.trim();
+  if(!text){ toast('Please enter your comments.','warn'); return; }
+  DB.comments.push({id:ID.comment++, assignmentId:aid, recommendation:rec, text, submittedAt:'15 Jul 2026', verified:false});
+  a.status = 'Comments submitted — pending officer verification';
+  sub.status = `${a.type} reviewer comments submitted — pending officer verification`;
+  notify(usersByRole('ResearchOfficer').map(u=>u.id), `${currentUser().name} submitted comments for "${sub.title}".`);
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Submitted review comments — ${sub.title} (${rec})`, date:'15 Jul 2026', outcome:'Success'});
+  toast('Comments submitted for officer verification.','success');
+  go('rev-assignments');
+}
+
+/* =========================================================================
+   AUTHOR PAGES (unchanged)
+   ========================================================================= */
+let coauthorCount = 0;
+function pageAuthorSubmit(){
+  coauthorCount = 0;
+  const u = currentUser();
+  return `
+  <div class="grid grid-2">
+    <div class="card">
+      <div class="eyebrow">Submission</div>
+      <h2>Submit abstract or working paper idea</h2>
+      <div class="sub">The corresponding author is the logged-in author. Add co-authors and their institutions or BOU departments.</div>
+      <div class="field">
+        <label>Call</label>
+        <select id="subCall" onchange="populateThemes()">
+          <option value="">Select a published call</option>
+          ${callOptions(true)}
+        </select>
+      </div>
+      <div class="field">
+        <label>Theme</label>
+        <select id="subTheme"><option value="">Select a call first</option></select>
+      </div>
+      <div class="field"><label>Title</label><input id="subTitle" type="text" placeholder="Enter the abstract or working paper title"></div>
+      <div class="field">
+        <label>Authors</label>
+        <div class="hint" style="margin-bottom:8px;">First row is the corresponding author (you).</div>
+        <div class="coauthor-row">
+          <div><label style="font-weight:400;font-size:11px;">Name</label><input type="text" value="${u.name}" disabled></div>
+          <div><label style="font-weight:400;font-size:11px;">Email</label><input type="text" value="${u.email}" disabled></div>
+          <div><label style="font-weight:400;font-size:11px;">BOU staff?</label><input type="text" value="Yes" disabled></div>
+          <div><label style="font-weight:400;font-size:11px;">Department / Institution</label><input type="text" value="Research Department" disabled></div>
+          <div></div>
+        </div>
+        <div id="coauthorRows"></div>
+        <button class="link-btn" onclick="addCoauthorRow()">+ Add co-author</button>
+      </div>
+      <div class="field">
+        <label>Upload documents</label>
+        <div class="file-chip"><div class="fico">DOC</div><div style="flex:1;">Abstract document<input type="file" style="border:none;padding:2px 0;"></div></div>
+        <div class="file-chip"><div class="fico">DOC</div><div style="flex:1;">Complete working paper (enabled once the paper stage of the call is open)<input type="file" style="border:none;padding:2px 0;"></div></div>
+        <div class="hint">Accepted types: .docx, .pdf — max 20MB (FR-4.8).</div>
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-outline" onclick="saveDraftSubmission()">Save as draft</button>
+        <button class="btn btn-primary" onclick="submitAuthorPaper()">Submit to Research Department</button>
+      </div>
+    </div>
+    <div class="card">
+      <div class="eyebrow">Guidance</div>
+      <h2>Before you submit</h2>
+      <div class="kv"><div class="k">Approved file types</div><div class="v">.docx, .pdf</div></div>
+      <div class="kv"><div class="k">Max file size</div><div class="v">20 MB</div></div>
+      <div class="kv"><div class="k">Co-authors</div><div class="v">Unlimited, each needs a valid e-mail</div></div>
+      <div class="kv"><div class="k">Multiple submissions per call</div><div class="v">Allowed</div></div>
+      <div class="divider"></div>
+      <div class="hint">Once finalised, you'll get an on-screen acknowledgement and a confirmation notification (FR-4.11). You can also save your work as a draft and finish later, before the deadline (FR-4.10).</div>
+    </div>
+  </div>`;
+}
+function populateThemes(){
+  const callId = Number(document.getElementById('subCall').value);
+  const sel = document.getElementById('subTheme');
+  if(!callId){ sel.innerHTML='<option value="">Select a call first</option>'; return; }
+  const call = callById(callId);
+  sel.innerHTML = call.themes.map(t=>`<option value="${t}">${t}</option>`).join('');
+}
+function addCoauthorRow(){
+  coauthorCount++;
+  const id = coauthorCount;
+  const wrap = document.getElementById('coauthorRows');
+  const div = document.createElement('div');
+  div.className='coauthor-row';
+  div.id = 'coauthor-'+id;
+  div.innerHTML = `
+    <div><input type="text" placeholder="Full name" id="ca-name-${id}"></div>
+    <div><input type="email" placeholder="Email" id="ca-email-${id}"></div>
+    <div><select id="ca-staff-${id}" onchange="toggleCoauthorDept(${id})"><option value="Yes">Yes</option><option value="No">No</option></select></div>
+    <div id="ca-dept-wrap-${id}"><select id="ca-dept-${id}">${DB.departments.map(d=>`<option>${d.name}</option>`).join('')}</select></div>
+    <div><button class="btn btn-danger-outline btn-sm" onclick="document.getElementById('coauthor-${id}').remove()">Remove</button></div>
+  `;
+  wrap.appendChild(div);
+}
+function toggleCoauthorDept(id){
+  const staff = document.getElementById('ca-staff-'+id).value;
+  const wrap = document.getElementById('ca-dept-wrap-'+id);
+  if(staff==='Yes'){
+    wrap.innerHTML = `<select id="ca-dept-${id}">${DB.departments.map(d=>`<option>${d.name}</option>`).join('')}</select>`;
+  } else {
+    wrap.innerHTML = `<input type="text" id="ca-dept-${id}" placeholder="Institution name">`;
+  }
+}
+function collectCoauthors(){
+  const rows = document.querySelectorAll('#coauthorRows .coauthor-row');
+  const out = [];
+  rows.forEach(r=>{
+    const id = r.id.split('-')[1];
+    const name = document.getElementById('ca-name-'+id).value.trim();
+    const email = document.getElementById('ca-email-'+id).value.trim();
+    const staff = document.getElementById('ca-staff-'+id).value==='Yes';
+    const deptEl = document.getElementById('ca-dept-'+id);
+    const dept = deptEl ? deptEl.value : '';
+    if(name) out.push({name, email, staff, dept});
+  });
+  return out;
+}
+function saveDraftSubmission(){ toast('Draft saved. You can finish this submission later, before the deadline.','success'); }
+function submitAuthorPaper(){
+  const callId = Number(document.getElementById('subCall').value);
+  const theme = document.getElementById('subTheme').value;
+  const title = document.getElementById('subTitle').value.trim();
+  if(!callId || !theme || !title){ toast('Select a call, theme, and enter a title.','warn'); return; }
+  const u = currentUser();
+  const coAuthors = collectCoauthors();
+  const sub = {
+    id: ID.sub++, callId, theme, title,
+    corresponding:{name:u.name, email:u.email},
+    coAuthors: coAuthors.map(c=>({name:c.name, email:c.email, staff:c.staff, dept:c.dept})),
+    stage:0, status:'Awaiting officer review / reviewer assignment', pubRef:null, pubDate:null,
+    docs:[{type:'Abstract', v:1}],
+    history:['Submitted 15 Jul 2026']
+  };
+  DB.submissions.push(sub);
+  notify([state.userId], `Your submission "${title}" has been received.`);
+  notify(usersByRole('ResearchOfficer').map(x=>x.id), `New submission received: "${title}".`);
+  DB.auditLog.unshift({id:ID.audit++, user:u.name, action:`Submitted abstract — ${title}`, date:'15 Jul 2026', outcome:'Success'});
+  toast('Submitted! A confirmation notification has been sent.','success');
+  go('author-mysubs');
+}
+
+function pageAuthorSubs(){
+  const u = currentUser();
+  const mine = DB.submissions.filter(s=>s.corresponding.email===u.email);
+  return `
+  <div class="card">
+    <div class="eyebrow">Tracking</div>
+    <h2>My submissions</h2>
+    <div class="sub">Visual progress for each submission, from Submitted through to Published (FR-5.1).</div>
+    ${mine.map(s=>`
+      <div style="padding:16px 0;border-bottom:1px solid #f2e9da;">
+        <div style="display:flex;justify-content:space-between;align-items:center;">
+          <strong style="font-size:14.5px;">${s.title}</strong>${stageBadge(s)}
+        </div>
+        <div class="hint">Call FY ${callById(s.callId)?callById(s.callId).fy:'—'} · Theme: ${s.theme}</div>
+        ${trackingBar(s)}
+        <div class="btn-row" style="margin-top:8px;">
+          <button class="btn btn-outline btn-sm" onclick="viewSubmissionHistory(${s.id})">View history</button>
+          ${s.status==='Revision requested'?`<button class="btn btn-primary btn-sm" style="width:auto" onclick="openRevisionForm(${s.id})">Submit revised paper</button>`:''}
+        </div>
+      </div>`).join('') || emptyBox('No submissions found.')}
+  </div>`;
+}
+function viewSubmissionHistory(subId){
+  const s = subById(subId);
+  openModal(`
+    <h3>${s.title}</h3>
+    <div class="hint" style="margin-bottom:10px;">Full history for this submission.</div>
+    ${s.history.map(h=>`<div style="font-size:13px;padding:6px 0;border-bottom:1px dashed #eee2ce;">${h}</div>`).join('')}
+    <div class="modal-actions"><button class="btn btn-outline btn-sm" onclick="closeModal()">Close</button></div>
+  `);
+}
+function openRevisionForm(subId){
+  const s = subById(subId);
+  const relatedComment = DB.comments.find(c=>{ const a=DB.assignments.find(x=>x.id===c.assignmentId); return a && a.submissionId===subId; });
+  openModal(`
+    <h3>Submit revised working paper</h3>
+    <div class="hint" style="margin-bottom:10px;">${relatedComment? 'Reviewer feedback: '+relatedComment.text : 'Please address reviewer feedback and re-upload your paper.'}</div>
+    <div class="field"><label>Revised working paper file</label><input type="file"></div>
+    <div class="field"><label>Note to reviewers (optional)</label><textarea placeholder="Summarise the changes made..."></textarea></div>
+    <div class="modal-actions">
+      <button class="btn btn-outline btn-sm" onclick="closeModal()">Cancel</button>
+      <button class="btn btn-primary btn-sm" style="width:auto" onclick="submitRevision(${subId})">Submit revision</button>
+    </div>
+  `);
+}
+function submitRevision(subId){
+  const s = subById(subId);
+  s.docs.push({type:'Revised Working Paper', v:(s.docs.length+1)});
+  s.status = 'Revised paper submitted — pending officer verification';
+  s.history.push('Revised paper submitted 15 Jul 2026');
+  notify(usersByRole('ResearchOfficer').map(u=>u.id), `Revised working paper submitted for "${s.title}".`);
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Submitted revised working paper — ${s.title}`, date:'15 Jul 2026', outcome:'Success'});
+  closeModal();
+  toast('Revised paper submitted for officer verification.','success');
+  go('author-mysubs');
+}
+
+/* =========================================================================
+   NOTIFICATIONS
+   ========================================================================= */
+function notify(userIds, text){
+  userIds.forEach(uid=>{
+    DB.notifications.unshift({id:ID.notifId++, userId:uid, text, date:'15 Jul 2026', read:false});
+  });
+}
+function pageNotifications(){
+  const mine = DB.notifications.filter(n=>n.userId===state.userId);
+  return `
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;">
+      <div><div class="eyebrow">Alerts</div><h2>Notifications</h2></div>
+      <button class="btn btn-outline btn-sm" onclick="markAllRead()">Mark all read</button>
+    </div>
+    <div style="margin-top:10px;">
+      ${mine.map(n=>`
+        <div class="notif-item ${n.read?'read':''}">
+          <div class="notif-dot"></div>
+          <div class="notif-text"><div class="msg">${n.text}</div><div class="meta">${n.date}</div></div>
+        </div>`).join('') || emptyBox('No notifications yet.')}
+    </div>
+  </div>`;
+}
+function markAllRead(){
+  DB.notifications.filter(n=>n.userId===state.userId).forEach(n=>n.read=true);
+  toast('All notifications marked as read.');
+  go('notifications');
+}
+
+/* --------------------------------- INIT ------------------------------------ */
+render();
+</script>
+</body>
+</html>
