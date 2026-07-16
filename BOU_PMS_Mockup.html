@@ -415,7 +415,7 @@ const NAV = {
   ResearchOfficer: [
     {group:'Overview', items:[ {key:'dashboard', label:'Dashboard', icon:ICONS.dashboard} ]},
     {group:'Workspace', items:[
-      {key:'ro-calls', label:'Calls for Papers', icon:ICONS.calls},
+      {key:'ro-calls', label:'Manage Calls', icon:ICONS.calls},
       {key:'ro-assign', label:'Reviewer Assignment', icon:ICONS.assign},
       {key:'ro-verify', label:'Verification Queue', icon:ICONS.verify},
     ]},
@@ -523,7 +523,7 @@ const PAGE_TITLES = {
   'admin-templates': ['MASTER DATA','Templates & Notification Notices'],
   'admin-public': ['PUBLIC SITE PREVIEW','Public Repository'],
   'admin-audit': ['OVERSIGHT','Audit Log'],
-  'ro-calls': ['CALLS','Calls for Papers'],
+  'ro-calls': ['MANAGE CALLS','Manage Calls'],
   'ro-assign': ['REVIEWER ASSIGNMENT','Assign Internal / External Reviewers'],
   'ro-verify': ['VERIFICATION QUEUE','Verify Comments & Revisions'],
   'ro-reports': ['INSIGHTS','Reports'],
@@ -1048,24 +1048,31 @@ function pagePublicRepo(insideApp){
 /* =========================================================================
    RESEARCH OFFICER PAGES (unchanged, except we keep themes)
    ========================================================================= */
-function pageCalls(){ /* same as before */ 
+function pageCalls(){
   return `
   <div class="grid grid-2">
     <div class="card">
       <div class="eyebrow">Calls</div>
-      <h2>Create call for papers</h2>
-      <div class="row-2">
-        <div class="field"><label>Fiscal year</label><input id="callFy" type="text" placeholder="2027/2028"></div>
-        <div class="field"><label>Abstract deadline</label><input id="callAbsDl" type="date"></div>
+      <h2>Manage Calls</h2>
+      <div class="sub">View existing calls or create a new one.</div>
+      <button class="btn btn-primary" onclick="toggleCallForm()" style="width:100%;justify-content:center;margin-bottom:16px;">
+        + Create Call for Papers
+      </button>
+      <div id="callFormContainer" style="display:none; border-top:1px solid var(--border); padding-top:16px; margin-top:8px;">
+        <div class="row-2">
+          <div class="field"><label>Fiscal year</label><input id="callFy" type="text" placeholder="2027/2028"></div>
+          <div class="field"><label>Abstract deadline</label><input id="callAbsDl" type="date"></div>
+        </div>
+        <div class="field"><label>Paper deadline</label><input id="callPaperDl" type="date"></div>
+        <div class="field"><label>Description</label><textarea id="callDesc" placeholder="Describe the call"></textarea></div>
+        <div class="field"><label>Themes, one per line</label><textarea id="callThemes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea></div>
+        <button class="btn btn-primary" onclick="createCall()">Create draft call</button>
+        <button class="btn btn-outline" style="margin-top:8px;width:auto;" onclick="toggleCallForm()">Cancel</button>
       </div>
-      <div class="field"><label>Paper deadline</label><input id="callPaperDl" type="date"></div>
-      <div class="field"><label>Description</label><textarea id="callDesc" placeholder="Describe the call"></textarea></div>
-      <div class="field"><label>Themes, one per line</label><textarea id="callThemes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea></div>
-      <button class="btn btn-primary" onclick="createCall()">Create draft call</button>
     </div>
     <div class="card">
       <div class="eyebrow">Calls</div>
-      <h2>Manage calls</h2>
+      <h2>Existing calls</h2>
       <div class="table-wrap">
         <table>
           <thead><tr><th>FY</th><th>Themes</th><th>Abstract deadline</th><th>Paper deadline</th><th>Status</th><th></th></tr></thead>
@@ -1081,6 +1088,12 @@ function pageCalls(){ /* same as before */
       </div>
     </div>
   </div>`;
+}
+function toggleCallForm(){
+  const container = document.getElementById('callFormContainer');
+  if(container){
+    container.style.display = container.style.display === 'none' ? 'block' : 'none';
+  }
 }
 function createCall(){
   const fy = document.getElementById('callFy').value.trim();
