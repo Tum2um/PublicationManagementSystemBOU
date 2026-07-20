@@ -39,6 +39,9 @@ Open the system in the browser:
 http://127.0.0.1:3000
 ```
 
+The main URL loads `BOU_PMS_Mockup.html`, which is the complete role-based
+Publication Management System experience used for the approved mockup.
+
 Local development admin account:
 
 ```text

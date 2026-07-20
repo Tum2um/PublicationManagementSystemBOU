@@ -18,8 +18,8 @@ SERVICES = [
     },
     {
         "name": "frontend",
-        "cwd": ROOT / "frontend",
-        "cmd": [sys.executable, "-m", "http.server", "3000", "--bind", "127.0.0.1"],
+        "cwd": ROOT,
+        "cmd": [sys.executable, "serve_frontend.py"],
         "url": "http://127.0.0.1:3000",
     },
 ]

@@ -104,3 +104,32 @@ def users(request):
         return JsonResponse({"message": "User created successfully", **serialize_user(user)}, status=201)
 
     return json_error("Method not allowed", 405)
+
+
+@csrf_exempt
+@token_required(required_roles=["Admin"])
+def user_detail(request, user_id):
+    try:
+        user = User.objects.get(id=user_id)
+    except User.DoesNotExist:
+        return json_error("User not found", 404)
+
+    if request.method != "PUT":
+        return json_error("Method not allowed", 405)
+
+    data = parse_json(request)
+    if data is None:
+        return json_error("Invalid JSON", 400)
+    if user.id == request.user.id and data.get("is_active") is False:
+        return json_error("You cannot deactivate your own account", 400)
+    if "roles" in data:
+        selected_roles = [role for role in data["roles"] if role in ROLE_NAMES]
+        if not selected_roles:
+            return json_error("Select at least one valid role", 400)
+        apply_roles(user, selected_roles)
+    if "is_active" in data:
+        user.is_active = bool(data["is_active"])
+    if data.get("password"):
+        user.set_password(data["password"])
+    user.save()
+    return JsonResponse({"message": "User account updated", **serialize_user(user)})

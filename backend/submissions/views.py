@@ -151,6 +151,34 @@ def publish_call(request, call_id):
 
 
 @csrf_exempt
+@token_required(required_roles=["ResearchOfficer"])
+def call_detail(request, call_id):
+    if request.method != "PUT":
+        return json_error("Method not allowed", 405)
+    try:
+        call = Call.objects.prefetch_related("themes").get(id=call_id)
+    except Call.DoesNotExist:
+        return json_error("Call not found", 404)
+    data = parse_json(request)
+    if data is None:
+        return json_error("Invalid JSON", 400)
+    for field in ["abstract_deadline", "paper_deadline"]:
+        if field in data:
+            value = parse_datetime(data[field])
+            if not value:
+                return json_error(f"Invalid {field.replace('_', ' ')}", 400)
+            if timezone.is_naive(value):
+                value = timezone.make_aware(value)
+            setattr(call, field, value)
+    if data.get("status"):
+        if data["status"] not in ["draft", "published", "closed"]:
+            return json_error("Invalid call status", 400)
+        call.status = data["status"]
+    call.save()
+    return JsonResponse({"message": "Call updated", "call": serialize_call(call)})
+
+
+@csrf_exempt
 @token_required()
 def submissions(request):
     if request.method == "GET":

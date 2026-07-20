@@ -1,0 +1,26 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BOU Publication Management System</title>
+  </head>
+  <body>
+    <p id="loading" style="font-family:Arial,sans-serif;padding:24px;">Loading BOU Publication Management System…</p>
+    <script>
+      fetch('BOU_PMS_Mockup.html?v=main-system')
+        .then((response) => {
+          if (!response.ok) throw new Error('System interface could not be loaded.');
+          return response.text();
+        })
+        .then((html) => {
+          document.open();
+          document.write(html);
+          document.close();
+        })
+        .catch((error) => {
+          document.getElementById('loading').textContent = error.message;
+        });
+    </script>
+  </body>
+</html>
