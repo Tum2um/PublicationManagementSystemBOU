@@ -33,6 +33,7 @@ def serialize_assignment(assignment):
         "assigned_by": assignment.assigned_by_id,
         "verified_by": assignment.verified_by_id,
         "verify_reason": assignment.verify_reason,
+        "created_at": assignment.created_at.isoformat(),
         "comments": [serialize_comment(comment) for comment in assignment.comments.all()],
     }
 

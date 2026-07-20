@@ -287,7 +287,8 @@ function navIcon(id) {
 
 function renderShell() {
   const nav = navItems();
-  if (!nav.find((item) => item.id === state.view) && state.view !== "officer-call-create") {
+  const transientViews = ["officer-call-create", "officer-assignment-create", "admin-user-create", "admin-department-create", "admin-theme-create", "admin-template-create"];
+  if (!nav.find((item) => item.id === state.view) && !transientViews.includes(state.view)) {
     state.view = "dashboard";
   }
 
@@ -354,15 +355,20 @@ function pageTitle() {
     "author-submissions": "My Submissions",
     "officer-calls": "Manage Calls",
     "officer-call-create": "Create Call for Papers",
+    "officer-assignment-create": "Assign Reviewer",
     "officer-assign": "Reviewer Assignment",
     "officer-verify": "Verification Queue",
     "editorial-verify": "Assignment Verification",
     "editorial-publish": "Approve for Publishing",
     "reviewer-assignments": "My Review Assignments",
     "admin-users": "User Accounts",
+    "admin-user-create": "Create User Account",
     "admin-departments": "Departments",
+    "admin-department-create": "Add Department",
     "admin-themes": "Research Themes",
+    "admin-theme-create": "Add Research Theme",
     "admin-templates": "Templates & Notices",
+    "admin-template-create": "Add Template or Notice",
     "admin-audit": "Audit Log",
     publications: "Public Working Paper Repository",
     reports: "Reports & Insights",
@@ -374,10 +380,10 @@ function pageTitle() {
 function pageMeta() {
   const eyebrow = {
     dashboard: "BOU PMS", "author-submit": "SUBMISSION", "author-submissions": "TRACKING",
-    "officer-calls": "MANAGE CALLS", "officer-call-create": "MANAGE CALLS", "officer-assign": "REVIEWER ASSIGNMENT",
+    "officer-calls": "MANAGE CALLS", "officer-call-create": "MANAGE CALLS", "officer-assign": "REVIEWER ASSIGNMENT", "officer-assignment-create": "REVIEWER ASSIGNMENT",
     "officer-verify": "VERIFICATION QUEUE", reports: "INSIGHTS", "editorial-verify": "VERIFICATION QUEUE",
     "editorial-publish": "FINAL STAGE", "reviewer-assignments": "REVIEW WORKSPACE", "admin-users": "ACCESS CONTROL",
-    "admin-departments": "MASTER DATA", "admin-themes": "MASTER DATA", "admin-templates": "MASTER DATA",
+    "admin-user-create": "ACCESS CONTROL", "admin-departments": "MASTER DATA", "admin-department-create": "MASTER DATA", "admin-themes": "MASTER DATA", "admin-theme-create": "MASTER DATA", "admin-templates": "MASTER DATA", "admin-template-create": "MASTER DATA",
     "admin-audit": "OVERSIGHT", publications: "PUBLIC SITE PREVIEW", notifications: "ALERTS"
   };
   return [eyebrow[state.view] || "BOU PMS", pageTitle()];
@@ -389,14 +395,19 @@ function renderCurrentView() {
   if (state.view === "officer-calls") return renderOfficerCallsPage();
   if (state.view === "officer-call-create") return renderOfficerCallCreatePage();
   if (state.view === "officer-assign") return renderOfficerAssignmentPage();
+  if (state.view === "officer-assignment-create") return renderOfficerAssignmentCreatePage();
   if (state.view === "officer-verify") return renderOfficerVerificationPage();
   if (state.view === "editorial-verify") return renderEditorialVerificationPage();
   if (state.view === "editorial-publish") return renderEditorialPublishingPage();
   if (state.view === "reviewer-assignments") return renderReviewerView();
   if (state.view === "admin-users") return renderAdminUsersPage();
+  if (state.view === "admin-user-create") return renderAdminUserCreatePage();
   if (state.view === "admin-departments") return renderAdminDepartmentsPage();
+  if (state.view === "admin-department-create") return renderAdminDepartmentCreatePage();
   if (state.view === "admin-themes") return renderAdminThemesPage();
+  if (state.view === "admin-theme-create") return renderAdminThemeCreatePage();
   if (state.view === "admin-templates") return renderAdminTemplatesPage();
+  if (state.view === "admin-template-create") return renderAdminTemplateCreatePage();
   if (state.view === "admin-audit") return renderAuditPage();
   if (state.view === "publications") return renderPublicationsPage();
   if (state.view === "reports") return renderReportsPage();
@@ -503,18 +514,22 @@ function assignmentFormMarkup() {
 }
 
 function renderOfficerAssignmentPage() {
-  return `<section class="grid two"><div class="panel">${pageHeader("Reviewer assignment", "Assign an internal or external reviewer", "Assignments require Editorial Board verification before the reviewer can act.")}${assignmentFormMarkup()}</div><div class="panel">${pageHeader("Assignment register", "Recent assignments")}${renderAssignmentList(state.assignments)}</div></section>`;
+  return `<section class="panel">${pageHeader("Reviewer assignment", "Assignment register", "View reviewer assignments and their Editorial Board verification status.")}${renderAssignmentsTable(state.assignments)}</section><button class="fab-button" data-go-view="officer-assignment-create" type="button"><span>＋</span> Assign Reviewer</button>`;
+}
+
+function renderOfficerAssignmentCreatePage() {
+  return `<section class="panel centered-form">${pageHeader("Reviewer assignment", "Assign internal or external reviewer", "The assignment is sent to the Editorial Board for verification before the reviewer can begin.")}${assignmentFormMarkup().replace('<button class="button" type="submit">Send assignment for Editorial Board verification</button>', '<div class="item-actions"><button class="button secondary" data-go-view="officer-assign" type="button">Back to assignments</button><button class="button" type="submit">Send to Editorial Board</button></div>')}</section>`;
 }
 
 function renderOfficerVerificationPage() {
   const revisions = state.submissions.filter((item) => item.status === "revised_submission" || item.current_stage === "revised_submission");
-  return `<section class="grid two"><div class="panel">${pageHeader("Officer verification", "Review comments and submission status", "Verify reviewer comments before they move forward, or send them back for correction.")}${renderOfficerQueues()}</div><div class="panel">${pageHeader("Officer verification", "Revised working papers", "Verify a revised paper before it proceeds to external review or the Editorial Board.")}${revisions.map((item) => `<div class="queue-row"><strong>${escapeHtml(item.title)}</strong><div class="item-actions"><button class="button success-outline compact" data-status="${item.id}" data-stage="external_review" data-label="Revised paper verified and ready for the next review stage" type="button">Verify & proceed</button><button class="button danger-outline compact" data-status="${item.id}" data-stage="author_revision" data-label="The revised paper was returned for correction" type="button">Return to author</button></div></div>`).join("") || `<div class="empty">No revised working papers pending verification.</div>`}</div></section>`;
+  return `<section class="panel">${pageHeader("Officer verification", "Verification queue", "Review one type of pending work at a time.")}<div class="subtabs"><button class="subtab active" data-tab-target="comments-queue" type="button">Reviewer comments</button><button class="subtab" data-tab-target="revisions-queue" type="button">Revised working papers <span class="tab-count">${revisions.length}</span></button></div><div class="tab-panel" data-tab-panel="comments-queue">${renderOfficerQueues()}</div><div class="tab-panel hidden" data-tab-panel="revisions-queue">${revisions.map((item) => `<div class="queue-row"><strong>${escapeHtml(item.title)}</strong><div class="item-actions"><button class="button success-outline compact" data-status="${item.id}" data-stage="external_review" data-label="Revised paper verified and ready for the next review stage" type="button">Verify & proceed</button><button class="button danger-outline compact" data-status="${item.id}" data-stage="author_revision" data-label="The revised paper was returned for correction" type="button">Return to author</button></div></div>`).join("") || `<div class="empty">No revised working papers pending verification.</div>`}</div></section>`;
 }
 
 function renderEditorialVerificationPage() {
   const assignments = state.assignments.filter((item) => item.status === "pending_editorial_verification" || item.status === "returned_to_research_officer");
   const officerApprovals = state.submissions.filter((item) => item.status === "editorial_board" || item.current_stage === "editorial_board");
-  return `<section class="grid two"><div class="panel">${pageHeader("Verification queue", "Reviewer assignments", "Approve the proposed reviewer or return the assignment with a reason.")}${renderAssignmentList(assignments, false, true)}</div><div class="panel">${pageHeader("Verification queue", "Officer's approval", "Verify the Research Officer's overall approval at this checkpoint.")}${officerApprovals.map((item) => `<div class="queue-row"><strong>${escapeHtml(item.title)}</strong><div class="item-actions"><button class="button success-outline compact" data-status="${item.id}" data-stage="approved_for_publishing" data-label="Officer approval verified; ready for the final publishing decision" type="button">Approve</button><button class="button danger-outline compact" data-status="${item.id}" data-stage="internal_review" data-label="Editorial Board returned the approval to the Research Officer" type="button">Return with reason</button></div></div>`).join("") || `<div class="empty">No officer approvals pending verification.</div>`}</div></section>`;
+  return `<section class="panel">${pageHeader("Verification queue", "Assignment & approval verification", "Work through one verification queue at a time.")}<div class="subtabs"><button class="subtab active" data-tab-target="assignment-verification" type="button">Reviewer assignments <span class="tab-count">${assignments.length}</span></button><button class="subtab" data-tab-target="officer-approvals" type="button">Officer approvals <span class="tab-count">${officerApprovals.length}</span></button></div><div class="tab-panel" data-tab-panel="assignment-verification">${renderAssignmentList(assignments, false, true)}</div><div class="tab-panel hidden" data-tab-panel="officer-approvals">${officerApprovals.map((item) => `<div class="queue-row"><strong>${escapeHtml(item.title)}</strong><div class="item-actions"><button class="button success-outline compact" data-status="${item.id}" data-stage="approved_for_publishing" data-label="Officer approval verified; ready for the final publishing decision" type="button">Approve</button><button class="button danger-outline compact" data-status="${item.id}" data-stage="internal_review" data-label="Editorial Board returned the approval to the Research Officer" type="button">Return with reason</button></div></div>`).join("") || `<div class="empty">No officer approvals pending verification.</div>`}</div></section>`;
 }
 
 function renderEditorialPublishingPage() {
@@ -526,21 +541,37 @@ function userFormMarkup() {
 }
 
 function renderAdminUsersPage() {
-  return `<section class="grid two admin-split"><div class="panel">${pageHeader("Access control", "Create user account", "There is no public registration; administrators provision every account.")}${userFormMarkup()}</div><div class="panel wide-panel">${pageHeader("Directory", "Current user accounts")}${renderUsersTable()}</div></section>`;
+  return `<section class="panel">${pageHeader("Access control", "Current user accounts", "Manage roles, account status, and password resets from one account register.")}${renderUsersTable()}</section><button class="fab-button" data-go-view="admin-user-create" type="button"><span>＋</span> Create User Account</button>`;
+}
+
+function renderAdminUserCreatePage() {
+  return `<section class="panel centered-form">${pageHeader("Access control", "Create user account", "There is no public registration; administrators provision every account.")}${userFormMarkup().replace('<button class="button" type="submit">Create account</button>', '<div class="item-actions"><button class="button secondary" data-go-view="admin-users" type="button">Back to users</button><button class="button" type="submit">Create account</button></div>')}</section>`;
 }
 
 function renderAdminDepartmentsPage() {
-  return `<section class="grid two"><div class="panel">${pageHeader("Master data", "Departments", "Populates the department drop-down for BOU-staff co-authors.")}<form id="department-form" class="form-grid"><div class="form-row"><label>Department name</label><input name="name" required placeholder="e.g. Legal Department"></div><button class="button" type="submit">Add department</button></form><div class="divider"></div>${renderDepartmentsTable()}</div><div class="panel">${pageHeader("Research setup", "Theme ownership", "Themes are maintained in the approved catalogue and selected by the Research Officer when creating a Call for Papers.")}<button class="button secondary full-button" data-go-view="admin-themes" type="button">Go to Research Themes</button></div></section>`;
+  return `<section class="panel">${pageHeader("Master data", "Departments", "Departments populate the BOU-staff co-author affiliation field.")}${renderDepartmentsTable()}</section><button class="fab-button" data-go-view="admin-department-create" type="button"><span>＋</span> Add Department</button>`;
+}
+
+function renderAdminDepartmentCreatePage() {
+  return `<section class="panel centered-form">${pageHeader("Master data", "Add department", "Add a department to the BOU staff affiliation list.")}<form id="department-form" class="form-grid"><div class="form-row"><label>Department name</label><input name="name" required placeholder="e.g. Legal Department"></div><div class="item-actions"><button class="button secondary" data-go-view="admin-departments" type="button">Back to departments</button><button class="button" type="submit">Add department</button></div></form></section>`;
 }
 
 function renderAdminThemesPage() {
-  return `<section class="panel">${pageHeader("Master data", "Research themes", "Themes are selected by the Research Officer per Call for Papers. Administrators can maintain or deactivate the approved catalogue.")}<form id="theme-form" class="inline-create"><div class="form-row"><label>Theme name</label><input name="name" required></div><button class="button" type="submit">Add theme</button></form>${renderThemesTable()}</section>`;
+  return `<section class="panel">${pageHeader("Master data", "Research themes", "Manage the approved theme catalogue used when creating Calls for Papers.")}${renderThemesTable()}</section><button class="fab-button" data-go-view="admin-theme-create" type="button"><span>＋</span> Add Research Theme</button>`;
+}
+
+function renderAdminThemeCreatePage() {
+  return `<section class="panel centered-form">${pageHeader("Master data", "Add research theme", "Create a theme that Research Officers can select for a Call for Papers.")}<form id="theme-form" class="form-grid"><div class="form-row"><label>Theme name</label><input name="name" required placeholder="e.g. Financial Inclusion"></div><div class="item-actions"><button class="button secondary" data-go-view="admin-themes" type="button">Back to themes</button><button class="button" type="submit">Add theme</button></div></form></section>`;
 }
 
 function renderAdminTemplatesPage() {
   const resources = state.templates.filter((item) => item.template_type !== "notification");
   const notices = state.templates.filter((item) => item.template_type === "notification");
-  return `<section class="grid two"><div class="panel">${pageHeader("Master data", "Reviewer templates", "Attached resources are made available whenever a paper is sent out for review.")}<div class="file-list">${resources.map(renderTemplateFileChip).join("") || `<div class="empty">No reviewer templates uploaded.</div>`}</div><details class="upload-details"><summary>Upload new template or version</summary>${templateFormMarkup("review_comments")}</details></div><div class="panel">${pageHeader("Master data", "Notification notices", "Edit the wording of automated e-mail and in-app notifications.")}${notices.map((item) => `<div class="notice-row"><div><strong>${escapeHtml(item.name)}</strong><p class="hint">${escapeHtml(item.body || item.subject)}</p></div><button class="button secondary compact" data-edit-template="${item.id}" type="button">Edit</button></div>`).join("") || `<div class="empty">No notification notices configured.</div>`}<details class="upload-details"><summary>Add notification notice</summary>${templateFormMarkup("notification")}</details></div></section>`;
+  return `<section class="panel">${pageHeader("Master data", "Templates & notification notices", "Manage reviewer resources and automated notices from one register.")}<div class="subtabs"><button class="subtab active" data-tab-target="reviewer-templates" type="button">Reviewer templates <span class="tab-count">${resources.length}</span></button><button class="subtab" data-tab-target="notification-notices" type="button">Notification notices <span class="tab-count">${notices.length}</span></button></div><div class="tab-panel" data-tab-panel="reviewer-templates"><div class="file-list">${resources.map(renderTemplateFileChip).join("") || `<div class="empty">No reviewer templates uploaded.</div>`}</div></div><div class="tab-panel hidden" data-tab-panel="notification-notices">${notices.map((item) => `<div class="notice-row"><div><strong>${escapeHtml(item.name)}</strong><p class="hint">${escapeHtml(item.body || item.subject)}</p></div><button class="button secondary compact" data-edit-template="${item.id}" type="button">Edit</button></div>`).join("") || `<div class="empty">No notification notices configured.</div>`}</div></section><button class="fab-button" data-go-view="admin-template-create" type="button"><span>＋</span> Add Template or Notice</button>`;
+}
+
+function renderAdminTemplateCreatePage() {
+  return `<section class="panel centered-form">${pageHeader("Master data", "Add template or notice", "Choose one resource type and complete its details.")}<form class="template-form form-grid"><div class="form-row"><label>Name</label><input name="name" required></div><div class="form-row"><label>Type</label><select name="template_type" required><option value="review_comments">Reviewer comments template</option><option value="review_guidelines">Reviewer guidelines</option><option value="notification">Notification notice</option></select></div><div class="form-row"><label>Subject</label><input name="subject"></div><div class="form-row"><label>Body / instructions</label><textarea name="body"></textarea></div><div class="form-row"><label>Attachment (optional)</label><input name="file" type="file" accept=".pdf,.doc,.docx"></div><div class="item-actions"><button class="button secondary" data-go-view="admin-templates" type="button">Back to templates</button><button class="button" type="submit">Save</button></div></form></section>`;
 }
 
 function templateFormMarkup(defaultType) {
@@ -563,7 +594,7 @@ function renderPublicationsPage() {
 function renderReportsPage() {
   const byStatus = state.submissions.reduce((totals, item) => ({ ...totals, [item.status]: (totals[item.status] || 0) + 1 }), {});
   const workload = state.assignments.reduce((totals, item) => ({ ...totals, [item.reviewer_name || `User #${item.reviewer_id}`]: (totals[item.reviewer_name || `User #${item.reviewer_id}`] || 0) + 1 }), {});
-  return `<section class="grid two"><div class="panel">${pageHeader("Reporting", "Submissions by status", "Pipeline health across all calls.")}<div class="table-wrap"><table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>${Object.entries(byStatus).map(([status, count]) => `<tr><td>${humanize(status)}</td><td>${count}</td></tr>`).join("") || `<tr><td colspan="2">No submissions yet.</td></tr>`}</tbody></table></div><div class="item-actions"><button class="button secondary compact" data-export="submissions" type="button">Export to Excel/CSV</button><button class="button secondary compact" id="print-report" type="button">Export to PDF</button></div></div><div class="panel">${pageHeader("Reporting", "Reviewer workload", "How many papers are currently assigned to each reviewer.")}<div class="table-wrap"><table><thead><tr><th>Reviewer</th><th>Assigned papers</th></tr></thead><tbody>${Object.entries(workload).map(([reviewer, count]) => `<tr><td>${escapeHtml(reviewer)}</td><td>${count}</td></tr>`).join("") || `<tr><td colspan="2">No assignments yet.</td></tr>`}</tbody></table></div><div class="divider"></div><span class="eyebrow">Turnaround</span><h2 class="small-heading">Average time per stage</h2><p class="hint">Turnaround metrics become available as completed workflow history accumulates.</p></div></section>`;
+  return `<section class="panel">${pageHeader("Reporting", "Reports & insights", "Choose one report to analyse or export.", `<div class="item-actions"><button class="button secondary compact" data-export="submissions" type="button">Export to Excel/CSV</button><button class="button secondary compact" id="print-report" type="button">Export to PDF</button></div>`)}<div class="subtabs"><button class="subtab active" data-tab-target="status-report" type="button">Submissions by status</button><button class="subtab" data-tab-target="workload-report" type="button">Reviewer workload</button><button class="subtab" data-tab-target="turnaround-report" type="button">Turnaround time</button></div><div class="tab-panel" data-tab-panel="status-report"><div class="table-wrap"><table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>${Object.entries(byStatus).map(([status, count]) => `<tr><td>${humanize(status)}</td><td>${count}</td></tr>`).join("") || `<tr><td colspan="2">No submissions yet.</td></tr>`}</tbody></table></div></div><div class="tab-panel hidden" data-tab-panel="workload-report"><div class="table-wrap"><table><thead><tr><th>Reviewer</th><th>Assigned papers</th></tr></thead><tbody>${Object.entries(workload).map(([reviewer, count]) => `<tr><td>${escapeHtml(reviewer)}</td><td>${count}</td></tr>`).join("") || `<tr><td colspan="2">No assignments yet.</td></tr>`}</tbody></table></div></div><div class="tab-panel hidden" data-tab-panel="turnaround-report"><div class="empty">Turnaround metrics become available as completed workflow history accumulates.</div></div></section>`;
 }
 
 function renderAuthorView() {
@@ -897,6 +928,10 @@ function renderAssignmentList(assignments, reviewerMode = false, editorialMode =
   return `<div class="list">${assignments.map((item) => renderAssignmentCard(item, reviewerMode, editorialMode)).join("")}</div>`;
 }
 
+function renderAssignmentsTable(assignments) {
+  return `<div class="table-wrap"><table><thead><tr><th>Submission</th><th>Reviewer</th><th>Type</th><th>Status</th><th>Assigned</th></tr></thead><tbody>${assignments.length ? assignments.map((item) => `<tr><td><strong>${escapeHtml(item.submission_title || `Submission #${item.submission_id}`)}</strong></td><td>${escapeHtml(item.reviewer_name || `User #${item.reviewer_id}`)}<div class="hint">${escapeHtml(item.reviewer_email || "")}</div></td><td>${humanize(item.reviewer_type)}</td><td><span class="badge status-${escapeAttribute(item.status)}">${humanize(item.status)}</span></td><td>${item.created_at ? formatDate(item.created_at) : "—"}</td></tr>`).join("") : `<tr><td colspan="5">No assignments have been created.</td></tr>`}</tbody></table></div>`;
+}
+
 function renderAssignmentCard(item, reviewerMode = false, editorialMode = false) {
   const comments = item.comments || [];
   return `
@@ -1124,6 +1159,8 @@ function bindEnhancements() {
     const data = new FormData(themeForm);
     await request("masterdata", "/api/themes", { method: "POST", body: JSON.stringify({ name: data.get("name") }) });
     showToast("Research theme added.");
+    state.view = "admin-themes";
+    localStorage.setItem("bou_view", state.view);
     await hydrate();
   });
   document.querySelectorAll("[data-edit-theme]").forEach((button) => button.addEventListener("click", async () => {
@@ -1142,6 +1179,8 @@ function bindEnhancements() {
     event.preventDefault();
     await request("masterdata", "/api/templates", { method: "POST", body: new FormData(templateForm), headers: {} });
     showToast("Template saved.");
+    state.view = "admin-templates";
+    localStorage.setItem("bou_view", state.view);
     await hydrate();
   }));
   document.querySelectorAll("[data-edit-template]").forEach((button) => button.addEventListener("click", async () => {
@@ -1160,6 +1199,11 @@ function bindEnhancements() {
   }));
   document.querySelectorAll("[data-export]").forEach((button) => button.addEventListener("click", () => exportCsv(button.dataset.export)));
   document.getElementById("print-report")?.addEventListener("click", () => window.print());
+  document.querySelectorAll("[data-tab-target]").forEach((button) => button.addEventListener("click", () => {
+    const container = button.closest(".panel");
+    container.querySelectorAll("[data-tab-target]").forEach((tab) => tab.classList.toggle("active", tab === button));
+    container.querySelectorAll("[data-tab-panel]").forEach((panel) => panel.classList.toggle("hidden", panel.dataset.tabPanel !== button.dataset.tabTarget));
+  }));
 }
 
 function bindAuthorView() {
@@ -1361,6 +1405,8 @@ function bindOfficerView() {
         })
       });
       showToast("Assignment sent to Editorial Board for verification.");
+      state.view = "officer-assign";
+      localStorage.setItem("bou_view", state.view);
       await hydrate();
     });
   }
@@ -1452,6 +1498,8 @@ function bindAdminView() {
         })
       });
       showToast("User account created.");
+      state.view = "admin-users";
+      localStorage.setItem("bou_view", state.view);
       await hydrate();
     });
   }
@@ -1522,6 +1570,10 @@ function bindMasterForm(formId, path, successMessage) {
       body: JSON.stringify({ name: data.get("name") })
     });
     showToast(successMessage);
+    if (path === "departments") {
+      state.view = "admin-departments";
+      localStorage.setItem("bou_view", state.view);
+    }
     await hydrate();
   });
 }

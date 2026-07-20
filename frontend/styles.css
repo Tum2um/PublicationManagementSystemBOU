@@ -1338,6 +1338,47 @@ td {
   margin-bottom: 14px;
 }
 
+.subtabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 18px;
+}
+
+.subtab {
+  padding: 7px 14px;
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: #fff;
+  color: var(--muted);
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.subtab.active {
+  border-color: var(--bou-brown);
+  background: var(--bou-brown);
+  color: #fff;
+}
+
+.tab-count {
+  display: inline-grid;
+  place-items: center;
+  min-width: 19px;
+  height: 19px;
+  margin-left: 4px;
+  padding: 0 5px;
+  border-radius: 10px;
+  background: #f0e3d3;
+  color: var(--bou-brown);
+  font-size: 10px;
+}
+
+.subtab.active .tab-count {
+  background: rgba(255, 255, 255, 0.2);
+  color: #fff;
+}
+
 .paper-card {
   margin-bottom: 12px;
   padding: 16px 18px;
