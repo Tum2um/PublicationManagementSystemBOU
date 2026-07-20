@@ -177,13 +177,8 @@ function renderLogin() {
         <div class="brand-panel">
           <div>
             ${logoMarkup("large")}
+            <span class="login-institution">Bank of Uganda</span>
             <h1>Publication Management System</h1>
-            <p>Research submissions, reviewer assignments, decisions, and notifications in one controlled workflow.</p>
-          </div>
-          <div class="brand-strip">
-            <span>Research Department</span>
-            <span>Role based access</span>
-            <span>No public signup</span>
           </div>
         </div>
         <div class="login-card">

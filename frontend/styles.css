@@ -56,7 +56,7 @@ button {
 }
 
 .brand-panel {
-  min-height: 560px;
+  min-height: 500px;
   padding: 44px;
   color: var(--white);
   background:
@@ -64,7 +64,17 @@ button {
     radial-gradient(circle at top right, rgba(221, 144, 36, 0.65), transparent 34%);
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: center;
+}
+
+.login-institution {
+  display: block;
+  margin-top: 28px;
+  color: var(--bou-gold);
+  font-size: 12px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
 }
 
 .logo-frame {
@@ -92,7 +102,7 @@ button {
 }
 
 .brand-panel h1 {
-  margin: 32px 0 14px;
+  margin: 10px 0 0;
   max-width: 430px;
   font-size: 42px;
   line-height: 1.05;
