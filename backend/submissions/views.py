@@ -412,6 +412,10 @@ def submission_documents(request, submission_id):
         uploaded_by=request.user,
         version_number=(submission.documents.filter(doc_type=doc_type).aggregate(Max("version_number"))["version_number__max"] or 0) + 1,
     )
+    if doc_type == "revision":
+        submission.status = "revised_submission"
+        submission.current_stage = "revised_submission"
+        submission.save()
     record_audit(request.user, "Uploaded submission document", "submission", submission.id, details=f"{doc_type} v{document.version_number}")
     create_notification(
         request.user.id,

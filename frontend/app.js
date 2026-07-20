@@ -274,9 +274,20 @@ function navItems() {
   return items;
 }
 
+function navIcon(id) {
+  const icons = {
+    dashboard: "◉", "admin-users": "♟", "admin-departments": "▥", "admin-themes": "◆",
+    "admin-templates": "▤", publications: "◎", "admin-audit": "⌕", "officer-calls": "▣",
+    "officer-assign": "♟", "officer-verify": "✓", reports: "▥", "editorial-verify": "✓",
+    "editorial-publish": "✎", "reviewer-assignments": "▧", "author-submit": "↥",
+    "author-submissions": "▰", notifications: "♢"
+  };
+  return icons[id] || "•";
+}
+
 function renderShell() {
   const nav = navItems();
-  if (!nav.find((item) => item.id === state.view)) {
+  if (!nav.find((item) => item.id === state.view) && state.view !== "officer-call-create") {
     state.view = "dashboard";
   }
 
@@ -287,19 +298,19 @@ function renderShell() {
           ${logoMarkup()}
           <div>
             <strong>Publication<br>Management</strong>
-            <small>Research Department</small>
+            <small>Bank of Uganda</small>
           </div>
         </div>
         <nav class="nav">
-          ${nav.map((item, index) => `${index === 0 || nav[index - 1].group !== item.group ? `<span class="nav-group-label">${item.group}</span>` : ""}<button data-view="${item.id}" class="${state.view === item.id ? "active" : ""}">${item.label}</button>`).join("")}
+          ${nav.map((item, index) => `${index === 0 || nav[index - 1].group !== item.group ? `<span class="nav-group-label">${item.group}</span>` : ""}<button data-view="${item.id}" class="${state.view === item.id ? "active" : ""}"><span class="nav-icon">${navIcon(item.id)}</span><span>${item.label}</span>${item.id === "notifications" && state.notifications.some((notification) => !notification.is_read) ? `<span class="nav-count">${state.notifications.filter((notification) => !notification.is_read).length}</span>` : ""}</button>`).join("")}
         </nav>
         <button class="button gold" id="refresh-btn" type="button">Refresh data</button>
       </aside>
       <main class="main">
         <div class="topbar">
           <div>
-            <span class="eyebrow">BOU PMS</span>
-            <h2 style="margin:6px 0 0;">${pageTitle()}</h2>
+            <span class="eyebrow">${pageMeta()[0]}</span>
+            <h2>${pageMeta()[1]}</h2>
           </div>
           <div class="profile-pill">
             <div class="avatar">${initials(state.user.name || state.user.email)}</div>
@@ -323,6 +334,14 @@ function renderShell() {
       renderShell();
     });
   });
+  document.querySelectorAll("[data-go-view]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.view = button.dataset.goView;
+      localStorage.setItem("bou_view", state.view);
+      renderShell();
+      window.scrollTo(0, 0);
+    });
+  });
   document.getElementById("logout-btn").addEventListener("click", clearSession);
   document.getElementById("refresh-btn").addEventListener("click", hydrate);
   bindCurrentView();
@@ -334,6 +353,7 @@ function pageTitle() {
     "author-submit": "Submit Abstract or Working Paper",
     "author-submissions": "My Submissions",
     "officer-calls": "Manage Calls",
+    "officer-call-create": "Create Call for Papers",
     "officer-assign": "Reviewer Assignment",
     "officer-verify": "Verification Queue",
     "editorial-verify": "Assignment Verification",
@@ -351,10 +371,23 @@ function pageTitle() {
   return map[state.view] || "Dashboard";
 }
 
+function pageMeta() {
+  const eyebrow = {
+    dashboard: "BOU PMS", "author-submit": "SUBMISSION", "author-submissions": "TRACKING",
+    "officer-calls": "MANAGE CALLS", "officer-call-create": "MANAGE CALLS", "officer-assign": "REVIEWER ASSIGNMENT",
+    "officer-verify": "VERIFICATION QUEUE", reports: "INSIGHTS", "editorial-verify": "VERIFICATION QUEUE",
+    "editorial-publish": "FINAL STAGE", "reviewer-assignments": "REVIEW WORKSPACE", "admin-users": "ACCESS CONTROL",
+    "admin-departments": "MASTER DATA", "admin-themes": "MASTER DATA", "admin-templates": "MASTER DATA",
+    "admin-audit": "OVERSIGHT", publications: "PUBLIC SITE PREVIEW", notifications: "ALERTS"
+  };
+  return [eyebrow[state.view] || "BOU PMS", pageTitle()];
+}
+
 function renderCurrentView() {
   if (state.view === "author-submit") return renderAuthorSubmitPage();
   if (state.view === "author-submissions") return renderAuthorSubmissionsPage();
   if (state.view === "officer-calls") return renderOfficerCallsPage();
+  if (state.view === "officer-call-create") return renderOfficerCallCreatePage();
   if (state.view === "officer-assign") return renderOfficerAssignmentPage();
   if (state.view === "officer-verify") return renderOfficerVerificationPage();
   if (state.view === "editorial-verify") return renderEditorialVerificationPage();
@@ -375,13 +408,28 @@ function renderDashboard() {
   const publishedCalls = state.calls.filter((call) => call.status === "published").length;
   const unread = state.notifications.filter((item) => !item.is_read).length;
   const pendingAssignments = state.assignments.filter((item) => item.status !== "verified").length;
+  if (hasRole("Author") && !hasAnyRole(["Admin", "ResearchOfficer", "EditorialBoard", "InternalReviewer", "ExternalReviewer"])) {
+    return `<section class="grid three dashboard-stats">${metricCard("Open calls you can submit to", publishedCalls, "Active")}${metricCard("Your submissions", state.submissions.length, "Total")}${metricCard("Unread alerts", unread, "Notifications")}</section><section class="grid two dashboard-panels"><div class="panel">${pageHeader("Tracking", "Recent submissions", "Status of your most recent papers.")}${renderSubmissionList(state.submissions.slice(0, 3), false)}<button class="button secondary compact" data-go-view="author-submissions" type="button">View all submissions</button></div><div class="panel">${pageHeader("Shortcuts", "Get started", "Jump straight into a task.")}<div class="stack-actions"><button class="button" data-go-view="author-submit" type="button">Submit an abstract or paper</button><button class="button secondary" data-go-view="notifications" type="button">View notifications (${unread})</button></div></div></section>`;
+  }
+  if (hasAnyRole(["InternalReviewer", "ExternalReviewer"]) && !hasAnyRole(["Admin", "ResearchOfficer", "EditorialBoard"])) {
+    const mine = state.assignments.filter((item) => item.reviewer_id === state.user.id);
+    return `<section class="grid three dashboard-stats">${metricCard("Assigned papers", mine.length, "Total")}${metricCard("Awaiting your review", mine.filter((item) => item.status === "verified").length, "Action needed")}${metricCard("Unread alerts", unread, "Notifications")}</section><section class="panel dashboard-panels">${pageHeader("Review workspace", "Your queue", `Papers assigned to you as ${state.user.roles.map(humanize).join(", ")}.`)}${renderAssignmentList(mine)}<button class="button secondary compact" data-go-view="reviewer-assignments" type="button">Go to My Assignments</button></section>`;
+  }
+  if (hasRole("ResearchOfficer") && !hasRole("Admin")) {
+    const comments = state.assignments.flatMap((assignment) => assignment.comments || []).filter((comment) => comment.verification_status === "pending");
+    return `<section class="grid three dashboard-stats">${metricCard("Active calls", publishedCalls, "Open calls authors can submit to")}${metricCard("Submissions", state.submissions.length, "Visible to your role")}${metricCard("Unread alerts", unread, "Notifications requiring attention")}</section><section class="grid two dashboard-panels"><div class="panel">${pageHeader("Workflow", "Needs a reviewer assignment")} ${renderSubmissionList(state.submissions.filter((item) => ["submitted", "internal_review_complete"].includes(item.status)).slice(0, 4))}<button class="button secondary compact" data-go-view="officer-assign" type="button">Go to Reviewer Assignment</button></div><div class="panel">${pageHeader("Review", `Verification queue`, `${comments.length} pending`)}${renderOfficerQueues()}<button class="button secondary compact" data-go-view="officer-verify" type="button">Go to Verification Queue</button></div></section>`;
+  }
+  if (hasRole("EditorialBoard") && !hasRole("Admin")) {
+    const pending = state.assignments.filter((item) => item.status === "pending_editorial_verification");
+    return `<section class="grid three dashboard-stats">${metricCard("Pending verifications", pending.length, "Awaiting Editorial Board")}${metricCard("Submissions", state.submissions.length, "Across all calls")}${metricCard("Unread alerts", unread, "Notifications")}</section><section class="panel dashboard-panels">${pageHeader("Review", "Verification queue")}${renderAssignmentList(pending)}<div class="item-actions"><button class="button secondary compact" data-go-view="editorial-verify" type="button">Go to Verification Queue</button><button class="button secondary compact" data-go-view="editorial-publish" type="button">Go to Approve for Publishing</button></div></section>`;
+  }
   return `
-    <section class="grid three">
+    <section class="grid three dashboard-stats">
       ${metricCard("Active calls", publishedCalls, "Open calls authors can submit to")}
       ${metricCard("Submissions", state.submissions.length, "Visible to your role")}
       ${metricCard("Unread alerts", unread, "Notifications requiring attention")}
     </section>
-    <section class="grid two" style="margin-top:16px;">
+    <section class="grid two dashboard-panels">
       <div class="panel">
         <div class="section-title">
           <div>
@@ -431,7 +479,7 @@ function submissionFormMarkup() {
 }
 
 function renderAuthorSubmitPage() {
-  return `<section class="grid content-layout"><div class="panel">${pageHeader("Submission", "Submit an abstract or working paper", "Complete the authorship details, then upload the abstract or paper from My Submissions after creating the record.")}${submissionFormMarkup()}</div><aside class="panel help-panel"><span class="eyebrow">Before submitting</span><h3>Submission checklist</h3><ul class="check-list"><li>Select an active call and matching theme.</li><li>Use the logged-in author as corresponding author.</li><li>Add all co-authors with valid affiliations.</li><li>Upload PDF or DOCX files up to 10 MB.</li></ul></aside></section>`;
+  return `<section class="grid two"><div class="panel">${pageHeader("Submission", "Submit abstract or working paper idea", "The corresponding author is the logged-in author. Add co-authors and their institutions or BOU departments.")}${submissionFormMarkup()}</div><aside class="panel"><span class="eyebrow">Guidance</span><h2>Before you submit</h2><div class="kv"><span>Approved file types</span><strong>.docx, .pdf</strong></div><div class="kv"><span>Max file size</span><strong>10 MB</strong></div><div class="kv"><span>Co-authors</span><strong>Unlimited, valid e-mail required</strong></div><div class="kv"><span>Multiple submissions per call</span><strong>Allowed</strong></div><div class="divider"></div><p class="hint">After creating the submission, upload the abstract or complete working paper from My Submissions. You will receive an on-screen acknowledgement and notification.</p></aside></section>`;
 }
 
 function renderAuthorSubmissionsPage() {
@@ -443,7 +491,11 @@ function callFormMarkup() {
 }
 
 function renderOfficerCallsPage() {
-  return `<section class="grid two"><div class="panel">${pageHeader("Manage calls", "Create call for papers", "New calls remain drafts until explicitly published.")}${callFormMarkup()}</div><div class="panel">${pageHeader("Call register", "Current and previous calls")}${renderCallsList()}</div></section>`;
+  return `<section class="panel">${pageHeader("Calls", "Existing calls", "View existing calls created in the system.")}${renderCallsTable()}</section><button class="fab-button" data-go-view="officer-call-create" type="button"><span>＋</span> Create Call for Papers</button>`;
+}
+
+function renderOfficerCallCreatePage() {
+  return `<section class="panel centered-form">${pageHeader("Calls", "Create Call for Papers", "Fill in the details below to create a new call.")}${callFormMarkup().replace('<button class="button" type="submit">Create draft call</button>', '<div class="item-actions"><button class="button secondary" data-go-view="officer-calls" type="button">Back to calls</button><button class="button" type="submit">Create draft call</button></div>')}</section>`;
 }
 
 function assignmentFormMarkup() {
@@ -455,11 +507,14 @@ function renderOfficerAssignmentPage() {
 }
 
 function renderOfficerVerificationPage() {
-  return `<section class="panel">${pageHeader("Verification queue", "Verify reviewer comments and revisions", "Approve complete reviewer feedback or return it with a reason.")}${renderOfficerQueues()}</section>`;
+  const revisions = state.submissions.filter((item) => item.status === "revised_submission" || item.current_stage === "revised_submission");
+  return `<section class="grid two"><div class="panel">${pageHeader("Officer verification", "Review comments and submission status", "Verify reviewer comments before they move forward, or send them back for correction.")}${renderOfficerQueues()}</div><div class="panel">${pageHeader("Officer verification", "Revised working papers", "Verify a revised paper before it proceeds to external review or the Editorial Board.")}${revisions.map((item) => `<div class="queue-row"><strong>${escapeHtml(item.title)}</strong><div class="item-actions"><button class="button success-outline compact" data-status="${item.id}" data-stage="external_review" data-label="Revised paper verified and ready for the next review stage" type="button">Verify & proceed</button><button class="button danger-outline compact" data-status="${item.id}" data-stage="author_revision" data-label="The revised paper was returned for correction" type="button">Return to author</button></div></div>`).join("") || `<div class="empty">No revised working papers pending verification.</div>`}</div></section>`;
 }
 
 function renderEditorialVerificationPage() {
-  return `<section class="panel">${pageHeader("Editorial verification", "Reviewer assignment queue", "Confirm appropriate reviewer selection or return the assignment to the Research Officer with a reason.")}${renderAssignmentList(state.assignments.filter((item) => item.status === "pending_editorial_verification" || item.status === "returned_to_research_officer"), false, true)}</section>`;
+  const assignments = state.assignments.filter((item) => item.status === "pending_editorial_verification" || item.status === "returned_to_research_officer");
+  const officerApprovals = state.submissions.filter((item) => item.status === "editorial_board" || item.current_stage === "editorial_board");
+  return `<section class="grid two"><div class="panel">${pageHeader("Verification queue", "Reviewer assignments", "Approve the proposed reviewer or return the assignment with a reason.")}${renderAssignmentList(assignments, false, true)}</div><div class="panel">${pageHeader("Verification queue", "Officer's approval", "Verify the Research Officer's overall approval at this checkpoint.")}${officerApprovals.map((item) => `<div class="queue-row"><strong>${escapeHtml(item.title)}</strong><div class="item-actions"><button class="button success-outline compact" data-status="${item.id}" data-stage="approved_for_publishing" data-label="Officer approval verified; ready for the final publishing decision" type="button">Approve</button><button class="button danger-outline compact" data-status="${item.id}" data-stage="internal_review" data-label="Editorial Board returned the approval to the Research Officer" type="button">Return with reason</button></div></div>`).join("") || `<div class="empty">No officer approvals pending verification.</div>`}</div></section>`;
 }
 
 function renderEditorialPublishingPage() {
@@ -467,7 +522,7 @@ function renderEditorialPublishingPage() {
 }
 
 function userFormMarkup() {
-  return `<form id="user-form" class="form-grid"><div class="inline-fields"><div class="form-row"><label>Full name</label><input name="name" required></div><div class="form-row"><label>Email address</label><input name="email" type="email" required></div></div><div class="form-row"><label>Temporary password</label><input name="password" type="password" minlength="8" required></div><div class="form-row"><label>Roles (Ctrl/Cmd-click for multiple)</label><select name="roles" multiple size="6">${roles.map((role) => `<option value="${role}">${role}</option>`).join("")}</select></div><button class="button" type="submit">Create user account</button></form>`;
+  return `<form id="user-form" class="form-grid"><div class="form-row"><label>Full name</label><input name="name" required placeholder="e.g. Brenda Auma"></div><div class="form-row"><label>Email address</label><input name="email" type="email" required placeholder="e.g. bauma@bou.or.ug"></div><div class="form-row"><label>Temporary password</label><input name="password" type="text" minlength="8" required value="Password123!"></div><div class="form-row"><label>Roles (select one or more)</label><div class="role-checkbox-grid">${roles.map((role) => `<label><input name="roles" type="checkbox" value="${role}" ${role === "Author" ? "checked" : ""}> ${humanize(role)}</label>`).join("")}</div></div><button class="button" type="submit">Create account</button></form>`;
 }
 
 function renderAdminUsersPage() {
@@ -475,15 +530,26 @@ function renderAdminUsersPage() {
 }
 
 function renderAdminDepartmentsPage() {
-  return `<section class="panel">${pageHeader("Master data", "BOU departments", "Departments populate staff co-author affiliation fields.")}<form id="department-form" class="inline-create"><div class="form-row"><label>Department name</label><input name="name" required></div><button class="button" type="submit">Add department</button></form>${renderDepartmentsTable()}</section>`;
+  return `<section class="grid two"><div class="panel">${pageHeader("Master data", "Departments", "Populates the department drop-down for BOU-staff co-authors.")}<form id="department-form" class="form-grid"><div class="form-row"><label>Department name</label><input name="name" required placeholder="e.g. Legal Department"></div><button class="button" type="submit">Add department</button></form><div class="divider"></div>${renderDepartmentsTable()}</div><div class="panel">${pageHeader("Research setup", "Theme ownership", "Themes are maintained in the approved catalogue and selected by the Research Officer when creating a Call for Papers.")}<button class="button secondary full-button" data-go-view="admin-themes" type="button">Go to Research Themes</button></div></section>`;
 }
 
 function renderAdminThemesPage() {
-  return `<section class="panel">${pageHeader("Master data", "Research themes", "Maintain the approved theme catalogue used when preparing calls for papers.")}<form id="theme-form" class="inline-create"><div class="form-row"><label>Theme name</label><input name="name" required></div><button class="button" type="submit">Add theme</button></form>${renderThemesTable()}</section>`;
+  return `<section class="panel">${pageHeader("Master data", "Research themes", "Themes are selected by the Research Officer per Call for Papers. Administrators can maintain or deactivate the approved catalogue.")}<form id="theme-form" class="inline-create"><div class="form-row"><label>Theme name</label><input name="name" required></div><button class="button" type="submit">Add theme</button></form>${renderThemesTable()}</section>`;
 }
 
 function renderAdminTemplatesPage() {
-  return `<section class="grid two"><div class="panel">${pageHeader("Templates", "Upload template or guideline", "Version-controlled reviewer resources are available to authenticated reviewers.")}<form id="template-form" class="form-grid"><div class="form-row"><label>Name</label><input name="name" required></div><div class="form-row"><label>Type</label><select name="template_type"><option value="review_comments">Reviewer comments template</option><option value="review_guidelines">Reviewer guidelines</option><option value="notification">Notification notice</option></select></div><div class="form-row"><label>Subject (for notices)</label><input name="subject"></div><div class="form-row"><label>Body / instructions</label><textarea name="body"></textarea></div><div class="form-row"><label>Attachment (optional)</label><input name="file" type="file" accept=".pdf,.doc,.docx"></div><button class="button" type="submit">Save template</button></form></div><div class="panel">${pageHeader("Resources", "Current templates & notices")}${renderTemplatesList()}</div></section>`;
+  const resources = state.templates.filter((item) => item.template_type !== "notification");
+  const notices = state.templates.filter((item) => item.template_type === "notification");
+  return `<section class="grid two"><div class="panel">${pageHeader("Master data", "Reviewer templates", "Attached resources are made available whenever a paper is sent out for review.")}<div class="file-list">${resources.map(renderTemplateFileChip).join("") || `<div class="empty">No reviewer templates uploaded.</div>`}</div><details class="upload-details"><summary>Upload new template or version</summary>${templateFormMarkup("review_comments")}</details></div><div class="panel">${pageHeader("Master data", "Notification notices", "Edit the wording of automated e-mail and in-app notifications.")}${notices.map((item) => `<div class="notice-row"><div><strong>${escapeHtml(item.name)}</strong><p class="hint">${escapeHtml(item.body || item.subject)}</p></div><button class="button secondary compact" data-edit-template="${item.id}" type="button">Edit</button></div>`).join("") || `<div class="empty">No notification notices configured.</div>`}<details class="upload-details"><summary>Add notification notice</summary>${templateFormMarkup("notification")}</details></div></section>`;
+}
+
+function templateFormMarkup(defaultType) {
+  return `<form class="template-form form-grid"><div class="form-row"><label>Name</label><input name="name" required></div><input name="template_type" type="hidden" value="${defaultType}"><div class="form-row"><label>Subject</label><input name="subject"></div><div class="form-row"><label>Body / instructions</label><textarea name="body"></textarea></div><div class="form-row"><label>Attachment (optional)</label><input name="file" type="file" accept=".pdf,.doc,.docx"></div><button class="button" type="submit">Save</button></form>`;
+}
+
+function renderTemplateFileChip(item) {
+  const extension = item.file_path.split(".").pop().toUpperCase() || "DOC";
+  return `<div class="file-chip"><span class="file-icon">${escapeHtml(extension)}</span><div><strong>${escapeHtml(item.name)}</strong><div class="hint">Version ${item.version} · updated ${formatDate(item.updated_at)}</div></div>${item.file_path ? `<a class="button secondary compact" href="${API.masterdata}${item.file_path}" target="_blank" rel="noopener">Download</a>` : ""}<button class="button danger-outline compact" data-delete-template="${item.id}" type="button">Deactivate</button></div>`;
 }
 
 function renderAuditPage() {
@@ -491,12 +557,13 @@ function renderAuditPage() {
 }
 
 function renderPublicationsPage() {
-  return `<section class="panel">${pageHeader("Working Paper Series", "Published research", "Approved Bank of Uganda working papers available from the publication workflow.")}<div class="publication-grid">${state.publications.length ? state.publications.map((item) => `<article class="publication-card"><span class="badge">${escapeHtml(item.publication_reference || `BOU-WP-${item.id}`)}</span><h3>${escapeHtml(item.title)}</h3><p class="muted">${escapeHtml(item.author)} · ${escapeHtml(item.theme_name)} · ${escapeHtml(item.fiscal_year)}</p><div class="item-actions">${item.paper ? `<a class="button secondary" href="${API.submission}${item.paper}" target="_blank" rel="noopener">Download paper</a>` : `<span class="muted">Paper file pending</span>`}</div></article>`).join("") : `<div class="empty">No papers have been published yet.</div>`}</div></section>`;
+  return `<section class="panel">${pageHeader("Public site preview", "BOU Working Paper Series", "This is what visitors of the public BOU Working Paper Series page see — no login required.")}${state.publications.length ? state.publications.map((item) => `<article class="paper-card"><h4>${escapeHtml(item.title)}</h4><p>${escapeHtml(item.publication_reference || `BOU-WP-${item.id}`)} · Published ${formatDate(item.publication_date)} · Theme: ${escapeHtml(item.theme_name)}</p><p>Authors: ${escapeHtml(item.author)}</p>${item.paper ? `<a class="button secondary compact" href="${API.submission}${item.paper}" target="_blank" rel="noopener">Download PDF</a>` : `<span class="hint">Paper file pending</span>`}</article>`).join("") : `<div class="empty">No papers published yet.</div>`}</section>`;
 }
 
 function renderReportsPage() {
   const byStatus = state.submissions.reduce((totals, item) => ({ ...totals, [item.status]: (totals[item.status] || 0) + 1 }), {});
-  return `<section class="grid three">${metricCard("Total submissions", state.submissions.length, "Across visible calls")}${metricCard("Published papers", state.publications.length, "Working Paper Series")}${metricCard("Pending reviews", state.assignments.filter((item) => item.status !== "verified").length, "Assignments requiring action")}</section><section class="grid two" style="margin-top:16px"><div class="panel">${pageHeader("Pipeline", "Submissions by status")}<div class="report-bars">${Object.entries(byStatus).map(([status, count]) => `<div><span>${humanize(status)}</span><strong>${count}</strong><i style="width:${Math.max(8, count / Math.max(1, state.submissions.length) * 100)}%"></i></div>`).join("") || `<div class="empty">No submissions to report.</div>`}</div></div><div class="panel">${pageHeader("Export", "Download report data")}<p class="muted">Export the currently visible submission register for analysis, or print this page to PDF using your browser.</p><div class="item-actions"><button class="button" data-export="submissions" type="button">Export CSV</button><button class="button secondary" id="print-report" type="button">Print / Save PDF</button></div></div></section>`;
+  const workload = state.assignments.reduce((totals, item) => ({ ...totals, [item.reviewer_name || `User #${item.reviewer_id}`]: (totals[item.reviewer_name || `User #${item.reviewer_id}`] || 0) + 1 }), {});
+  return `<section class="grid two"><div class="panel">${pageHeader("Reporting", "Submissions by status", "Pipeline health across all calls.")}<div class="table-wrap"><table><thead><tr><th>Status</th><th>Count</th></tr></thead><tbody>${Object.entries(byStatus).map(([status, count]) => `<tr><td>${humanize(status)}</td><td>${count}</td></tr>`).join("") || `<tr><td colspan="2">No submissions yet.</td></tr>`}</tbody></table></div><div class="item-actions"><button class="button secondary compact" data-export="submissions" type="button">Export to Excel/CSV</button><button class="button secondary compact" id="print-report" type="button">Export to PDF</button></div></div><div class="panel">${pageHeader("Reporting", "Reviewer workload", "How many papers are currently assigned to each reviewer.")}<div class="table-wrap"><table><thead><tr><th>Reviewer</th><th>Assigned papers</th></tr></thead><tbody>${Object.entries(workload).map(([reviewer, count]) => `<tr><td>${escapeHtml(reviewer)}</td><td>${count}</td></tr>`).join("") || `<tr><td colspan="2">No assignments yet.</td></tr>`}</tbody></table></div><div class="divider"></div><span class="eyebrow">Turnaround</span><h2 class="small-heading">Average time per stage</h2><p class="hint">Turnaround metrics become available as completed workflow history accumulates.</p></div></section>`;
 }
 
 function renderAuthorView() {
@@ -681,8 +748,8 @@ function renderReviewerView() {
           <p class="muted">Submit comments using the template and guidelines received from the Research Officer.</p>
         </div>
       </div>
+      <div class="reviewer-downloads">${state.templates.filter((item) => ["review_comments", "review_guidelines"].includes(item.template_type)).map((item) => item.file_path ? `<a class="button secondary compact" href="${API.masterdata}${item.file_path}" target="_blank" rel="noopener">Download ${escapeHtml(item.name)}</a>` : "").join("") || `<span class="hint">No reviewer resources uploaded yet.</span>`}</div>
       ${renderAssignmentList(mine, true)}
-      <div class="resource-strip"><strong>Reviewer resources</strong>${state.templates.filter((item) => ["review_comments", "review_guidelines"].includes(item.template_type)).map((item) => item.file_path ? `<a href="${API.masterdata}${item.file_path}" target="_blank" rel="noopener">${escapeHtml(item.name)} (v${item.version})</a>` : `<span>${escapeHtml(item.name)} (v${item.version})</span>`).join("") || `<span class="muted">No resources uploaded yet.</span>`}</div>
     </section>
   `;
 }
@@ -763,7 +830,7 @@ function renderNotificationsView() {
         </div>
         <button class="button secondary" id="mark-all-read" type="button">Mark all read</button>
       </div>
-      <div class="list">
+      <div class="notification-list">
         ${state.notifications.length ? state.notifications.map(renderNotificationCard).join("") : `<div class="empty">No notifications yet.</div>`}
       </div>
     </section>
@@ -772,19 +839,10 @@ function renderNotificationsView() {
 
 function renderNotificationCard(item) {
   return `
-    <div class="card">
-      <div class="item-head">
-        <div>
-          <h3>${escapeHtml(item.title)}</h3>
-          <p class="muted">${escapeHtml(item.message)}</p>
-          <small class="muted">${item.created_at || ""}</small>
-        </div>
-        <span class="badge">${item.is_read ? "Read" : "Unread"}</span>
-      </div>
-      <div class="item-actions">
-        <button class="button secondary" data-read="${item.id}" type="button">Mark read</button>
-        <button class="button danger" data-delete-notification="${item.id}" type="button">Delete</button>
-      </div>
+    <div class="notification-item ${item.is_read ? "read" : ""}">
+      <span class="notification-dot"></span>
+      <div class="notification-copy"><strong>${escapeHtml(item.title)}</strong><div>${escapeHtml(item.message)}</div><small>${formatDate(item.created_at)}</small></div>
+      <div class="row-actions">${item.is_read ? "" : `<button class="button secondary compact" data-read="${item.id}" type="button">Mark read</button>`}<button class="button danger-outline compact" data-delete-notification="${item.id}" type="button">Delete</button></div>
     </div>
   `;
 }
@@ -831,7 +889,7 @@ function renderSubmissionCard(item, authorMode = false) {
 
 function renderTracking(steps) {
   if (!steps.length) return "";
-  return `<div class="tracking">${steps.map((step) => `<div class="step ${step.state}">${escapeHtml(step.label)}</div>`).join("")}</div>`;
+  return `<div class="tracker">${steps.map((step, index) => `<div class="tstep ${step.state === "completed" ? "done" : step.state}"><span class="track-line"></span><span class="track-dot">${step.state === "completed" ? "✓" : index + 1}</span><span class="track-label">${escapeHtml(step.label)}</span></div>`).join("")}</div>`;
 }
 
 function renderAssignmentList(assignments, reviewerMode = false, editorialMode = false) {
@@ -898,6 +956,10 @@ function renderCallsList() {
       </div>
     </article>
   `).join("")}</div>`;
+}
+
+function renderCallsTable() {
+  return `<div class="table-wrap"><table><thead><tr><th>FY</th><th>Themes</th><th>Abstract deadline</th><th>Paper deadline</th><th>Status</th><th></th></tr></thead><tbody>${state.calls.length ? state.calls.map((call) => `<tr><td><strong>${escapeHtml(call.fiscal_year)}</strong></td><td>${(call.themes || []).map((theme) => escapeHtml(theme.name)).join(", ")}</td><td>${formatDate(call.abstract_deadline)}</td><td>${formatDate(call.paper_deadline)}</td><td><span class="badge status-${escapeAttribute(call.status)}">${humanize(call.status)}</span></td><td><div class="row-actions">${call.status === "draft" ? `<button class="button secondary compact" data-publish-call="${call.id}" type="button">Publish</button>` : ""}${call.status === "published" ? `<button class="button secondary compact" data-edit-call="${call.id}" type="button">Edit deadline</button><button class="button danger-outline compact" data-close-call="${call.id}" type="button">Close</button>` : ""}</div></td></tr>`).join("") : `<tr><td colspan="6">No calls have been created.</td></tr>`}</tbody></table></div>`;
 }
 
 function renderOfficerQueues() {
@@ -996,7 +1058,7 @@ function renderTemplatesList() {
 
 function renderAuditTable() {
   if (!state.auditLogs.length) return `<div class="empty">No audited activity yet.</div>`;
-  return `<div class="table-wrap"><table><thead><tr><th>Date</th><th>User</th><th>Action</th><th>Entity</th><th>Outcome</th><th>Details</th></tr></thead><tbody>${state.auditLogs.map((item) => `<tr><td>${formatDate(item.created_at)}</td><td>${escapeHtml(item.user || item.email)}</td><td>${escapeHtml(item.action)}</td><td>${escapeHtml([item.entity_type, item.entity_id].filter(Boolean).join(" #"))}</td><td><span class="badge ${item.outcome === "success" ? "success" : "danger-badge"}">${escapeHtml(item.outcome)}</span></td><td>${escapeHtml(item.details)}</td></tr>`).join("")}</tbody></table></div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>User</th><th>Action</th><th>Timestamp</th><th>Outcome</th></tr></thead><tbody>${state.auditLogs.map((item) => `<tr><td>${escapeHtml(item.user || item.email)}</td><td>${escapeHtml(item.action)}${item.details ? `<div class="hint">${escapeHtml(item.details)}</div>` : ""}</td><td>${formatDate(item.created_at)}</td><td><span class="badge ${item.outcome === "success" ? "success" : "danger-badge"}">${humanize(item.outcome)}</span></td></tr>`).join("")}</tbody></table></div>`;
 }
 
 function reviewerOptions() {
@@ -1076,13 +1138,20 @@ function bindEnhancements() {
     showToast("Theme status updated.");
     await hydrate();
   }));
-  const templateForm = document.getElementById("template-form");
-  if (templateForm) templateForm.addEventListener("submit", async (event) => {
+  document.querySelectorAll(".template-form").forEach((templateForm) => templateForm.addEventListener("submit", async (event) => {
     event.preventDefault();
     await request("masterdata", "/api/templates", { method: "POST", body: new FormData(templateForm), headers: {} });
     showToast("Template saved.");
     await hydrate();
-  });
+  }));
+  document.querySelectorAll("[data-edit-template]").forEach((button) => button.addEventListener("click", async () => {
+    const item = state.templates.find((template) => String(template.id) === button.dataset.editTemplate);
+    const body = prompt(`Edit notice — ${item?.name || "Notification"}`, item?.body || "");
+    if (body === null) return;
+    await request("masterdata", `/api/templates/${button.dataset.editTemplate}`, { method: "PUT", body: JSON.stringify({ body }) });
+    showToast("Notice updated.");
+    await hydrate();
+  }));
   document.querySelectorAll("[data-delete-template]").forEach((button) => button.addEventListener("click", async () => {
     if (!confirm("Deactivate this template?")) return;
     await request("masterdata", `/api/templates/${button.dataset.deleteTemplate}`, { method: "DELETE" });
@@ -1218,6 +1287,8 @@ function bindOfficerView() {
         })
       });
       showToast("Call draft created.");
+      state.view = "officer-calls";
+      localStorage.setItem("bou_view", state.view);
       await hydrate();
     });
   }
@@ -1370,7 +1441,7 @@ function bindAdminView() {
     userForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(userForm);
-      const selectedRoles = [...userForm.querySelector('[name="roles"]').selectedOptions].map((option) => option.value);
+      const selectedRoles = [...userForm.querySelectorAll('[name="roles"]:checked')].map((input) => input.value);
       await request("identity", "/api/users", {
         method: "POST",
         body: JSON.stringify({
