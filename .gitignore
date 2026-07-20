@@ -1,9 +1,69 @@
-venv/
+# Python bytecode and tooling caches
 __pycache__/
-*.pyc
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.hypothesis/
+
+# Virtual environments
+venv/
+.venv/
+env/
+ENV/
+
+# Local environment variables and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Django local runtime data
 *.db
 *.sqlite3
-.env
-.DS_Store
+*.sqlite3-journal
 backend/uploads/
 backend/media/
+staticfiles/
+
+# Test, coverage and profiling output
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+*.cover
+*.prof
+test-results/
+
+# Logs and process files
+*.log
+*.pid
+*.pid.lock
+
+# Frontend dependencies and generated output
+node_modules/
+dist/
+build/
+.parcel-cache/
+.vite/
+
+# IDE and editor files
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Operating-system metadata
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Local Codex/agent workspace metadata
+.agents/
+.codex/
