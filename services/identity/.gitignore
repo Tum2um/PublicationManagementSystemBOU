@@ -1,7 +1,0 @@
-.env
-venv
-identity.db
-*.db
-*.log
-*.pyc
-__pycache__/

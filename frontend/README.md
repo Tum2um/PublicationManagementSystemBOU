@@ -1,8 +1,8 @@
 # BOU PMS Frontend
 
-This is the first browser frontend for the Publication Management System.
-
-It is dependency-free HTML, CSS and JavaScript so the team can run it quickly while the Django backend is being shaped.
+This is the active browser frontend for the Publication Management System.
+It is dependency-free HTML, CSS, and JavaScript and communicates with the
+Django API in `backend/`.
 
 ## Run
 

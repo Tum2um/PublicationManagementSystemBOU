@@ -80,4 +80,4 @@ Run the automated backend checks with:
 backend/venv/bin/python backend/manage.py test accounts masterdata submissions reviews notifications
 ```
 
-The old `services/` Flask/FastAPI folders are kept for reference only. Active development now runs through the Django backend in `backend/`.
+The active backend is the Django application in `backend/`.
