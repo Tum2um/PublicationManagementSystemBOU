@@ -1,4 +1,6 @@
-from django.http import JsonResponse
+from pathlib import Path
+
+from django.http import FileResponse, JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from bou_pms.api import json_error, parse_json, token_required
@@ -108,7 +110,7 @@ def serialize_template(item):
         "template_type": item.template_type,
         "subject": item.subject,
         "body": item.body,
-        "file_path": item.file.url if item.file else "",
+        "file_path": f"/api/templates/{item.id}/download" if item.file else "",
         "version": item.version,
         "is_active": item.is_active,
         "updated_at": item.updated_at.isoformat(),
@@ -116,7 +118,7 @@ def serialize_template(item):
 
 
 @csrf_exempt
-@token_required()
+@token_required(required_roles=["Admin", "ResearchOfficer", "EditorialBoard", "InternalReviewer", "ExternalReviewer"])
 def templates(request):
     if request.method == "GET":
         return JsonResponse([serialize_template(item) for item in ContentTemplate.objects.filter(is_active=True)], safe=False)
@@ -126,12 +128,21 @@ def templates(request):
     template_type = request.POST.get("template_type", "")
     if not name or template_type not in dict(ContentTemplate.TEMPLATE_TYPES):
         return json_error("A name and valid template type are required", 400)
+    uploaded_file = request.FILES.get("file")
+    if uploaded_file:
+        extension = Path(uploaded_file.name).suffix.lower()
+        if uploaded_file.size > 10 * 1024 * 1024 or extension not in {".pdf", ".docx"}:
+            return json_error("Template files must be PDF or DOCX and no larger than 10 MB", 400)
+        header = uploaded_file.read(4)
+        uploaded_file.seek(0)
+        if (extension == ".pdf" and header != b"%PDF") or (extension == ".docx" and header[:2] != b"PK"):
+            return json_error("The template content does not match its file extension", 400)
     item = ContentTemplate.objects.create(
         name=name,
         template_type=template_type,
         subject=request.POST.get("subject", ""),
         body=request.POST.get("body", ""),
-        file=request.FILES.get("file"),
+        file=uploaded_file,
     )
     return JsonResponse(serialize_template(item), status=201)
 
@@ -158,3 +169,16 @@ def template_detail(request, template_id):
         item.save()
         return JsonResponse({"message": "Template deactivated"})
     return json_error("Method not allowed", 405)
+
+
+@token_required(required_roles=["Admin", "ResearchOfficer", "EditorialBoard", "InternalReviewer", "ExternalReviewer"])
+def template_download(request, template_id):
+    if request.method != "GET":
+        return json_error("Method not allowed", 405)
+    try:
+        item = ContentTemplate.objects.get(id=template_id, is_active=True)
+    except ContentTemplate.DoesNotExist:
+        return json_error("Template not found", 404)
+    if not item.file:
+        return json_error("Template file not found", 404)
+    return FileResponse(item.file.open("rb"), as_attachment=True, filename=Path(item.file.name).name)

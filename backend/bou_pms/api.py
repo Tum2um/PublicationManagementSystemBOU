@@ -1,13 +1,18 @@
+import hashlib
 import json
+import secrets
+from datetime import timedelta
 from functools import wraps
 
 from django.contrib.auth.models import User
-from django.core import signing
+from django.conf import settings
 from django.http import JsonResponse
+from django.utils import timezone
+
+from accounts.models import AuthToken
 
 
-TOKEN_SALT = "bou-pms-auth"
-TOKEN_MAX_AGE_SECONDS = 8 * 60 * 60
+TOKEN_MAX_AGE_SECONDS = settings.AUTH_TOKEN_MAX_AGE
 
 
 def parse_json(request):
@@ -38,35 +43,48 @@ def serialize_user(user):
 
 
 def create_token(user):
-    return signing.dumps(
-        {"user_id": user.id, "email": user.email, "roles": user_roles(user)},
-        salt=TOKEN_SALT,
+    raw_token = secrets.token_urlsafe(48)
+    AuthToken.objects.create(
+        user=user,
+        token_hash=hashlib.sha256(raw_token.encode()).hexdigest(),
+        expires_at=timezone.now() + timedelta(seconds=TOKEN_MAX_AGE_SECONDS),
     )
+    return raw_token
+
+
+def revoke_token(raw_token):
+    if raw_token:
+        AuthToken.objects.filter(
+            token_hash=hashlib.sha256(raw_token.encode()).hexdigest(),
+            revoked_at__isnull=True,
+        ).update(revoked_at=timezone.now())
 
 
 def get_user_from_request(request):
     auth_header = request.headers.get("Authorization", "")
-    if not auth_header.startswith("Bearer "):
+    token = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else request.COOKIES.get(settings.AUTH_TOKEN_COOKIE)
+    if not token:
         return None, "Token is missing!"
-
-    token = auth_header.split(" ", 1)[1]
-    try:
-        payload = signing.loads(token, salt=TOKEN_SALT, max_age=TOKEN_MAX_AGE_SECONDS)
-    except signing.SignatureExpired:
-        return None, "Token has expired!"
-    except signing.BadSignature:
+    token_record = AuthToken.objects.select_related("user").filter(
+        token_hash=hashlib.sha256(token.encode()).hexdigest(),
+        revoked_at__isnull=True,
+        expires_at__gt=timezone.now(),
+        user__is_active=True,
+    ).first()
+    if not token_record:
         return None, "Invalid token!"
-
-    try:
-        return User.objects.get(id=payload["user_id"], is_active=True), None
-    except User.DoesNotExist:
-        return None, "User not found"
+    return token_record.user, None
 
 
 def token_required(required_roles=None):
     def decorator(view_func):
         @wraps(view_func)
         def wrapped(request, *args, **kwargs):
+            uses_cookie = bool(request.COOKIES.get(settings.AUTH_TOKEN_COOKIE)) and not request.headers.get("Authorization", "").startswith("Bearer ")
+            if uses_cookie and request.method not in {"GET", "HEAD", "OPTIONS"}:
+                origin = request.headers.get("Origin", "").rstrip("/")
+                if origin not in settings.CORS_ALLOWED_ORIGINS:
+                    return json_error("Request origin is not allowed", 403)
             user, error = get_user_from_request(request)
             if error:
                 return json_error(error, 401)

@@ -1494,3 +1494,8 @@ td {
     min-width: 90px;
   }
 }
+/* Reusable spacing utilities keep markup compatible with a strict CSP. */
+.compact-panel { padding: 12px; }
+.margin-top-small { margin-top: 5px; }
+.margin-top-medium { margin-top: 12px; }
+.margin-top-large { margin-top: 16px; }

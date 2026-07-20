@@ -53,6 +53,10 @@ Email: admin@bou.or.ug
 Password: Admin123!
 ```
 
+This credential is for an isolated local workstation only. Set
+`DEV_ADMIN_PASSWORD` before running `setup_local.py` to choose a different
+development password. The seed command is disabled when `DJANGO_DEBUG=false`.
+
 The frontend does not have public registration. Accounts are created by the System Admin from inside the app.
 
 ## Implemented workflow
@@ -81,3 +85,57 @@ backend/venv/bin/python backend/manage.py test accounts masterdata submissions r
 ```
 
 The active backend is the Django application in `backend/`.
+
+## Security and production deployment
+
+The application includes server-side role and object authorization, revocable
+random session tokens in HTTP-only cookies, origin validation for cookie-based
+writes, login throttling, Django password validation, restricted CORS, security
+headers and CSP, protected private-document downloads, upload size/type/signature
+checks, and audit logging. Private uploads are no longer served directly from
+the media directory.
+
+Do not deploy with the local defaults. Configure at least:
+
+```bash
+DJANGO_DEBUG=false
+DJANGO_SECRET_KEY=<long-random-secret-from-a-secret-manager>
+DJANGO_ALLOWED_HOSTS=research.example.org
+CORS_ALLOWED_ORIGINS=https://research.example.org
+AUTH_COOKIE_SECURE=true
+SECURE_SSL_REDIRECT=true
+SECURE_HSTS_SECONDS=31536000
+SECURE_HSTS_PRELOAD=true
+```
+
+Run the deployment and test checks before each release:
+
+```bash
+DJANGO_DEBUG=false \
+DJANGO_SECRET_KEY='<long-random-secret>' \
+DJANGO_ALLOWED_HOSTS=research.example.org \
+CORS_ALLOWED_ORIGINS=https://research.example.org \
+SECURE_HSTS_PRELOAD=true \
+backend/venv/bin/python backend/manage.py check --deploy
+
+backend/venv/bin/python backend/manage.py test accounts masterdata submissions reviews notifications
+backend/venv/bin/python -m pip check
+```
+
+### Controls that still require deployment or operational work
+
+- Terminate HTTPS with a maintained reverse proxy/load balancer and use a valid
+  certificate. HSTS should only be enabled after HTTPS is confirmed everywhere.
+- Replace SQLite with a managed production database, encrypt disks/backups,
+  restrict database and upload-storage access, and test restores regularly.
+- Add organisation-managed MFA or single sign-on. This cannot be completed
+  safely without choosing and configuring the Bank's identity provider.
+- Connect uploads to an antivirus/content-disarm service. The application now
+  rejects mismatched file signatures, but this is not malware scanning.
+- Send security logs to protected central monitoring and configure alerts for
+  repeated login failures, access denials, and privileged account changes.
+- Run dependency scanning, SAST/DAST, and an independent penetration test before
+  launch and after material changes. OWASP alignment is an ongoing verification
+  process, not a one-time certification supplied by application code alone.
+- Define session-retention and scheduled cleanup for expired/revoked
+  `accounts_authtoken` records, plus incident-response and key-rotation procedures.

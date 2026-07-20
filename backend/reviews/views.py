@@ -39,11 +39,11 @@ def serialize_assignment(assignment):
 
 
 @csrf_exempt
-@token_required()
+@token_required(required_roles=["Admin", "ResearchOfficer", "EditorialBoard", "InternalReviewer", "ExternalReviewer"])
 def review_assignments(request):
     if request.method == "GET":
         query = ReviewAssignment.objects.select_related("submission", "reviewer").prefetch_related("comments")
-        if {"InternalReviewer", "ExternalReviewer"}.intersection(request.user_roles):
+        if not {"Admin", "ResearchOfficer", "EditorialBoard"}.intersection(request.user_roles):
             query = query.filter(reviewer=request.user)
         return JsonResponse([serialize_assignment(item) for item in query.order_by("-id")], safe=False)
 

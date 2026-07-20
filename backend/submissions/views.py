@@ -2,18 +2,31 @@ from django.core.files.storage import default_storage
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
 from django.db.models import Max
-from django.http import JsonResponse
+from django.http import FileResponse, JsonResponse
+from django.db.models import Q
+from django.shortcuts import get_object_or_404
+from pathlib import Path
+from uuid import uuid4
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 
-from bou_pms.api import json_error, parse_json, token_required
+from bou_pms.api import get_user_from_request, json_error, parse_json, token_required, user_roles
 from accounts.models import record_audit
 from notifications.models import create_notification
 from submissions.models import Call, DocumentVersion, Submission, SubmissionAuthor, Theme
 
 
-STAFF_ROLES = {"ResearchOfficer", "EditorialBoard", "InternalReviewer", "ExternalReviewer"}
+WORKFLOW_ROLES = {"Admin", "ResearchOfficer", "EditorialBoard"}
+REVIEWER_ROLES = {"InternalReviewer", "ExternalReviewer"}
+
+
+def can_access_submission(user, roles, submission):
+    return (
+        submission.corresponding_author_id == user.id
+        or bool(WORKFLOW_ROLES.intersection(roles))
+        or (bool(REVIEWER_ROLES.intersection(roles)) and submission.review_assignments.filter(reviewer=user).exists())
+    )
 
 
 def serialize_call(call):
@@ -101,7 +114,7 @@ def serialize_submission(submission, include_details=False):
             {
                 "id": document.id,
                 "type": document.doc_type,
-                "file_path": document.file.url if document.file else "",
+                "file_path": f"/api/documents/{document.id}/download" if document.file else "",
                 "uploaded_at": document.uploaded_at.isoformat(),
                 "version_number": document.version_number,
             }
@@ -114,7 +127,10 @@ def serialize_submission(submission, include_details=False):
 @token_required()
 def calls(request):
     if request.method == "GET":
-        return JsonResponse([serialize_call(call) for call in Call.objects.prefetch_related("themes").all().order_by("-id")], safe=False)
+        query = Call.objects.prefetch_related("themes").all()
+        if not WORKFLOW_ROLES.intersection(request.user_roles):
+            query = query.filter(status="published")
+        return JsonResponse([serialize_call(call) for call in query.order_by("-id")], safe=False)
 
     if request.method == "POST":
         if "ResearchOfficer" not in request.user_roles:
@@ -198,8 +214,12 @@ def call_detail(request, call_id):
 @token_required()
 def submissions(request):
     if request.method == "GET":
-        if STAFF_ROLES.intersection(request.user_roles):
+        if WORKFLOW_ROLES.intersection(request.user_roles):
             query = Submission.objects.select_related("call", "theme").all()
+        elif REVIEWER_ROLES.intersection(request.user_roles):
+            query = Submission.objects.select_related("call", "theme").filter(
+                Q(corresponding_author=request.user) | Q(review_assignments__reviewer=request.user)
+            ).distinct()
         else:
             query = Submission.objects.select_related("call", "theme").filter(corresponding_author=request.user)
         return JsonResponse([serialize_submission(item) for item in query.order_by("-id")], safe=False)
@@ -268,7 +288,7 @@ def submission_detail(request, submission_id):
     except Submission.DoesNotExist:
         return json_error("Submission not found", 404)
 
-    if submission.corresponding_author_id != request.user.id and not STAFF_ROLES.intersection(request.user_roles):
+    if not can_access_submission(request.user, request.user_roles, submission):
         return json_error("Permission denied", 403)
 
     if request.method == "GET":
@@ -337,6 +357,8 @@ def submission_status(request, submission_id):
     }
     if data.get("status") and data["status"] not in allowed_statuses:
         return json_error("Invalid submission status", 400)
+    if data.get("current_stage") and data["current_stage"] not in allowed_statuses:
+        return json_error("Invalid submission stage", 400)
     final_statuses = {"approved_for_publishing", "published", "declined"}
     if data.get("status") in final_statuses and "EditorialBoard" not in request.user_roles:
         return json_error("Only the Editorial Board can record a final decision", 403)
@@ -376,7 +398,7 @@ def publications(request):
             "author": item.corresponding_author.get_full_name() or item.corresponding_author.email,
             "publication_reference": item.publication_reference,
             "publication_date": item.publication_date.isoformat() if item.publication_date else None,
-            "paper": next((doc.file.url for doc in item.documents.filter(doc_type__in=["paper", "revision"]).order_by("-version_number", "-id") if doc.file), ""),
+            "paper": next((f"/api/documents/{doc.id}/download" for doc in item.documents.filter(doc_type__in=["paper", "revision"]).order_by("-version_number", "-id") if doc.file), ""),
         }
         for item in query
     ], safe=False)
@@ -401,10 +423,20 @@ def submission_documents(request, submission_id):
         return json_error("doc_type must be abstract, paper, or revision", 400)
     if uploaded_file.size > 10 * 1024 * 1024:
         return json_error("File too large. Max 10 MB", 400)
-    if not uploaded_file.name.lower().endswith((".pdf", ".docx")):
+    extension = uploaded_file.name.rsplit(".", 1)[-1].lower() if "." in uploaded_file.name else ""
+    allowed_content_types = {
+        "pdf": {"application/pdf"},
+        "docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream"},
+    }
+    if extension not in allowed_content_types or uploaded_file.content_type not in allowed_content_types[extension]:
         return json_error("File type not allowed. Allowed: pdf, docx", 400)
 
-    path = default_storage.save(f"submission_documents/{submission.id}_{doc_type}_{uploaded_file.name}", uploaded_file)
+    header = uploaded_file.read(4)
+    uploaded_file.seek(0)
+    if (extension == "pdf" and header != b"%PDF") or (extension == "docx" and header[:2] != b"PK"):
+        return json_error("The uploaded file content does not match its extension", 400)
+
+    path = default_storage.save(f"submission_documents/{submission.id}/{doc_type}/{uuid4().hex}.{extension}", uploaded_file)
     document = DocumentVersion.objects.create(
         submission=submission,
         doc_type=doc_type,
@@ -425,3 +457,19 @@ def submission_documents(request, submission_id):
         submission.id,
     )
     return JsonResponse({"message": "File uploaded", "document_id": document.id}, status=201)
+
+
+def document_download(request, document_id):
+    if request.method != "GET":
+        return json_error("Method not allowed", 405)
+    document = get_object_or_404(DocumentVersion.objects.select_related("submission"), id=document_id)
+    is_public_paper = document.submission.status == "published" and document.doc_type in {"paper", "revision"}
+    if not is_public_paper:
+        user, error = get_user_from_request(request)
+        if error:
+            return json_error(error, 401)
+        if not can_access_submission(user, set(user_roles(user)), document.submission):
+            return json_error("Permission denied", 403)
+    if not document.file:
+        return json_error("Document not found", 404)
+    return FileResponse(document.file.open("rb"), as_attachment=True, filename=f"{document.doc_type}{Path(document.file.name).suffix}")

@@ -4,6 +4,7 @@ from django.contrib.auth.models import Group, User
 from django.test import TestCase
 
 from bou_pms.api import create_token
+from django.conf import settings
 
 
 class UserManagementTests(TestCase):
@@ -43,3 +44,30 @@ class UserManagementTests(TestCase):
         response = self.client.get("/api/audit-logs", **self.headers)
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()[0]["action"], "Test action")
+
+    def test_weak_password_is_rejected(self):
+        response = self.client.post(
+            "/api/users",
+            data=json.dumps({"name": "New Author", "email": "new@bou.or.ug", "password": "password", "roles": ["Author"]}),
+            content_type="application/json",
+            **self.headers,
+        )
+        self.assertEqual(response.status_code, 400)
+
+    def test_logout_revokes_server_side_token(self):
+        token = create_token(self.admin)
+        headers = {"HTTP_AUTHORIZATION": f"Bearer {token}"}
+        self.assertEqual(self.client.get("/api/auth/me", **headers).status_code, 200)
+        self.assertEqual(self.client.post("/api/auth/logout", **headers).status_code, 200)
+        self.assertEqual(self.client.get("/api/auth/me", **headers).status_code, 401)
+
+    def test_cookie_authenticated_write_rejects_untrusted_origin(self):
+        token = create_token(self.admin)
+        self.client.cookies[settings.AUTH_TOKEN_COOKIE] = token
+        response = self.client.put(
+            f"/api/users/{self.author.id}",
+            data=json.dumps({"is_active": False}),
+            content_type="application/json",
+            HTTP_ORIGIN="https://attacker.example",
+        )
+        self.assertEqual(response.status_code, 403)

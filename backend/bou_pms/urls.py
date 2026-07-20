@@ -1,5 +1,3 @@
-from django.conf import settings
-from django.conf.urls.static import static
 from django.urls import path
 
 from accounts import views as account_views
@@ -12,6 +10,7 @@ from submissions import views as submission_views
 urlpatterns = [
     path("health", account_views.health),
     path("api/auth/login", account_views.login),
+    path("api/auth/logout", account_views.logout),
     path("api/auth/me", account_views.me),
     path("api/users", account_views.users),
     path("api/users/<int:user_id>", account_views.user_detail),
@@ -22,6 +21,7 @@ urlpatterns = [
     path("api/themes/<int:theme_id>", masterdata_views.theme_detail),
     path("api/templates", masterdata_views.templates),
     path("api/templates/<int:template_id>", masterdata_views.template_detail),
+    path("api/templates/<int:template_id>/download", masterdata_views.template_download),
     path("api/calls", submission_views.calls),
     path("api/calls/<int:call_id>/publish", submission_views.publish_call),
     path("api/calls/<int:call_id>", submission_views.call_detail),
@@ -29,6 +29,7 @@ urlpatterns = [
     path("api/submissions/<int:submission_id>", submission_views.submission_detail),
     path("api/submissions/<int:submission_id>/status", submission_views.submission_status),
     path("api/submissions/<int:submission_id>/documents", submission_views.submission_documents),
+    path("api/documents/<int:document_id>/download", submission_views.document_download),
     path("api/publications", submission_views.publications),
     path("api/review-assignments", review_views.review_assignments),
     path("api/review-assignments/<int:assignment_id>/verify", review_views.verify_assignment),
@@ -42,6 +43,3 @@ urlpatterns = [
     path("notifications/<int:notification_id>/unread", notification_views.mark_unread),
     path("notifications/<int:notification_id>", notification_views.notification_detail),
 ]
-
-if settings.DEBUG:
-    urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

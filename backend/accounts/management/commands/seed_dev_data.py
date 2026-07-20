@@ -1,5 +1,8 @@
+import os
+
+from django.conf import settings
 from django.contrib.auth.models import Group, User
-from django.core.management.base import BaseCommand
+from django.core.management.base import BaseCommand, CommandError
 
 from accounts.views import ROLE_NAMES
 from masterdata.models import Department
@@ -9,6 +12,8 @@ class Command(BaseCommand):
     help = "Seed local development roles, admin account and master data."
 
     def handle(self, *args, **options):
+        if not settings.DEBUG:
+            raise CommandError("seed_dev_data is disabled when DJANGO_DEBUG is false")
         for role_name in ROLE_NAMES:
             Group.objects.get_or_create(name=role_name)
 
@@ -24,7 +29,7 @@ class Command(BaseCommand):
             },
         )
         if created:
-            admin.set_password("Admin123!")
+            admin.set_password(os.getenv("DEV_ADMIN_PASSWORD", "Admin123!"))
         admin.email = admin_email
         admin.is_staff = True
         admin.is_superuser = True

@@ -7,8 +7,7 @@ const API = {
 };
 
 const state = {
-  token: localStorage.getItem("bou_token"),
-  user: JSON.parse(localStorage.getItem("bou_user") || "null"),
+  user: JSON.parse(sessionStorage.getItem("bou_user") || "null"),
   view: localStorage.getItem("bou_view") || "dashboard",
   calls: [],
   submissions: [],
@@ -71,15 +70,12 @@ async function request(service, path, options = {}) {
   if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
   }
-  if (state.token) {
-    headers.Authorization = `Bearer ${state.token}`;
-  }
-
   let response;
   try {
     response = await fetch(`${API[service]}${path}`, {
       ...options,
-      headers
+      headers,
+      credentials: "include"
     });
   } catch (_error) {
     throw new Error("Cannot reach the Django backend. Make sure python3 run_all.py is running, or start the backend on port 8000.");
@@ -100,28 +96,25 @@ async function request(service, path, options = {}) {
 }
 
 function setSession(loginData) {
-  state.token = loginData.token;
   state.user = {
     id: loginData.user_id,
     roles: loginData.roles,
     email: loginData.email || ""
   };
-  localStorage.setItem("bou_token", state.token);
-  localStorage.setItem("bou_user", JSON.stringify(state.user));
+  sessionStorage.setItem("bou_user", JSON.stringify(state.user));
 }
 
 function clearSession() {
-  localStorage.removeItem("bou_token");
-  localStorage.removeItem("bou_user");
+  fetch(`${API.identity}/api/auth/logout`, { method: "POST", credentials: "include" }).catch(() => {});
+  sessionStorage.removeItem("bou_user");
   localStorage.removeItem("bou_view");
-  state.token = null;
   state.user = null;
   state.view = "dashboard";
   render();
 }
 
 async function hydrate() {
-  if (!state.token) {
+  if (!state.user) {
     renderLogin();
     return;
   }
@@ -129,7 +122,7 @@ async function hydrate() {
   try {
     const me = await request("identity", "/api/auth/me");
     state.user = me;
-    localStorage.setItem("bou_user", JSON.stringify(me));
+    sessionStorage.setItem("bou_user", JSON.stringify(me));
     await loadSharedData();
     renderShell();
   } catch (error) {
@@ -163,7 +156,7 @@ async function loadSharedData() {
 }
 
 function render() {
-  if (!state.token) {
+  if (!state.user) {
     renderLogin();
   } else {
     hydrate();
@@ -532,7 +525,7 @@ function renderEditorialPublishingPage() {
 }
 
 function userFormMarkup() {
-  return `<form id="user-form" class="form-grid"><div class="form-row"><label>Full name</label><input name="name" required placeholder="e.g. Brenda Auma"></div><div class="form-row"><label>Email address</label><input name="email" type="email" required placeholder="e.g. bauma@bou.or.ug"></div><div class="form-row"><label>Temporary password</label><input name="password" type="text" minlength="8" required value="Password123!"></div><div class="form-row"><label>Roles (select one or more)</label><div class="role-checkbox-grid">${roles.map((role) => `<label><input name="roles" type="checkbox" value="${role}" ${role === "Author" ? "checked" : ""}> ${humanize(role)}</label>`).join("")}</div></div><button class="button" type="submit">Create account</button></form>`;
+  return `<form id="user-form" class="form-grid"><div class="form-row"><label>Full name</label><input name="name" required placeholder="e.g. Brenda Auma"></div><div class="form-row"><label>Email address</label><input name="email" type="email" required placeholder="e.g. bauma@bou.or.ug"></div><div class="form-row"><label>Temporary password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="At least 12 characters"></div><div class="form-row"><label>Roles (select one or more)</label><div class="role-checkbox-grid">${roles.map((role) => `<label><input name="roles" type="checkbox" value="${role}" ${role === "Author" ? "checked" : ""}> ${humanize(role)}</label>`).join("")}</div></div><button class="button" type="submit">Create account</button></form>`;
 }
 
 function renderAdminUsersPage() {
@@ -622,10 +615,10 @@ function renderAuthorView() {
             <label>Title</label>
             <input name="title" required placeholder="Enter the abstract or working paper title">
           </div>
-          <div class="panel" style="padding:12px;">
+          <div class="panel compact-panel">
             <strong>Authors</strong>
-            <p class="muted" style="margin-top:5px;">First row should be the corresponding author.</p>
-            <div id="authors-box" class="grid" style="margin-top:12px;"></div>
+            <p class="muted margin-top-small">First row should be the corresponding author.</p>
+            <div id="authors-box" class="grid margin-top-medium"></div>
             <button class="button secondary" id="add-author-btn" type="button">Add co-author</button>
           </div>
           <button class="button" type="submit">Submit to Research Department</button>
@@ -715,7 +708,7 @@ function renderOfficerView() {
         </form>
       </div>
     </section>
-    <section class="grid two" style="margin-top:16px;">
+    <section class="grid two margin-top-large">
       <div class="panel">
         <div class="section-title">
           <div>
@@ -802,7 +795,7 @@ function renderAdminView() {
           </div>
           <div class="form-row">
             <label>Temporary password</label>
-            <input name="password" required placeholder="Password123!">
+            <input name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="At least 12 characters">
           </div>
           <div class="form-row">
             <label>Roles</label>
@@ -823,14 +816,14 @@ function renderAdminView() {
         ${renderUsersTable()}
       </div>
     </section>
-    <section class="grid two" style="margin-top:16px;">
+    <section class="grid two margin-top-large">
       <div class="panel">
         <div class="section-title"><div><span class="eyebrow">Master data</span><h2>Departments</h2></div></div>
         <form id="department-form" class="form-grid">
           <div class="form-row"><label>Department name</label><input name="name" required></div>
           <button class="button secondary" type="submit">Add department</button>
         </form>
-        <div style="margin-top:16px;">
+        <div class="margin-top-large">
           ${renderDepartmentsTable()}
         </div>
       </div>
@@ -840,7 +833,7 @@ function renderAdminView() {
           Themes are added by the Research Officer while creating a call for papers.
           This keeps themes tied to the correct call and avoids Admin creating research workflow content.
         </p>
-        <div class="empty" style="margin-top:14px;">Use Research Officer &gt; Create call for papers to add call themes.</div>
+        <div class="empty margin-top-medium">Use Research Officer &gt; Create call for papers to add call themes.</div>
       </div>
     </section>
   `;
@@ -946,7 +939,7 @@ function renderAssignmentCard(item, reviewerMode = false, editorialMode = false)
         </div>
       ` : ""}
       ${reviewerMode && item.status === "verified" ? `
-        <form class="form-grid review-comment-form" data-assignment-id="${item.id}" style="margin-top:12px;">
+        <form class="form-grid review-comment-form margin-top-medium" data-assignment-id="${item.id}">
           <div class="form-row">
             <label>Recommendation</label>
             <select name="recommendation" required>

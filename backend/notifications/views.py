@@ -21,7 +21,7 @@ def serialize_notification(notification):
 
 
 @csrf_exempt
-@token_required()
+@token_required(required_roles=["Admin"])
 def notifications(request):
     if request.method != "POST":
         return json_error("Method not allowed", 405)
