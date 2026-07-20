@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>BOU Publication Management System — Prototype</title>
+<title>BOU Publication Management System</title>
 <style>
   :root{
     --maroon:#651019;
@@ -44,7 +44,7 @@
     color:#f4e9df;display:flex;flex-direction:column;padding:22px 16px;position:sticky;top:0;height:100vh;overflow-y:auto;
   }
   .brand{display:flex;gap:10px;align-items:center;margin-bottom:26px;padding:0 4px;}
-  .brand-crest{width:42px;height:42px;flex-shrink:0;}
+  .brand-crest{width:42px;height:42px;flex-shrink:0;object-fit:contain;background:#fff;border:1px solid rgba(193,145,47,.75);border-radius:7px;padding:3px;}
   .brand-text .t1{font-family:Georgia,serif;font-weight:700;font-size:15px;line-height:1.2;color:#fff;}
   .brand-text .t2{font-size:11px;color:#d8b9a2;letter-spacing:.03em;}
   .nav-group-label{font-size:10.5px;text-transform:uppercase;letter-spacing:.08em;color:#c99a83;margin:16px 8px 6px;font-weight:600;}
@@ -231,7 +231,7 @@
 
 <script>
 /* =========================================================================
-   BOU PUBLICATION MANAGEMENT SYSTEM — CLICKABLE PROTOTYPE
+   BOU PUBLICATION MANAGEMENT SYSTEM
    Updated to support multiple roles per user (FR‑1.4) and role editing.
    Manage Calls: full‑page table with floating create button.
    ========================================================================= */
@@ -245,7 +245,7 @@ const ICONS = {
 };
 
 /* ------------------------------- DATA MODEL ------------------------------ */
-const DB = {
+let DB = {
   departments: [
     {id:1, name:'Research Department'},
     {id:2, name:'Financial Markets Department'},
@@ -346,6 +346,14 @@ const DB = {
   }
 };
 
+// Keep the complete working system data between refreshes in this browser.
+try {
+  const savedDb = localStorage.getItem('bou_pms_main_db');
+  if(savedDb) DB = JSON.parse(savedDb);
+} catch(_error) {
+  localStorage.removeItem('bou_pms_main_db');
+}
+
 const STAGES = ['Submitted','Internal Review','External Review','Editorial Verification','Published'];
 const ROLE_LABEL = {
   Admin:'System Administrator', ResearchOfficer:'Research Officer', EditorialBoard:'Editorial Board',
@@ -361,6 +369,13 @@ let state = {
   page: 'dashboard',  // current page key
   subtab: null
 };
+
+try {
+  const savedState = JSON.parse(localStorage.getItem('bou_pms_main_state') || 'null');
+  if(savedState && DB.users.some(u=>u.id===savedState.userId)) state = {...state, ...savedState};
+} catch(_error) {
+  localStorage.removeItem('bou_pms_main_state');
+}
 
 function currentUser(){ return DB.users.find(u=>u.id===state.userId); }
 function usersByRole(role){ return DB.users.filter(u=>u.roles.includes(role)); }
@@ -477,18 +492,15 @@ function switchUser(id){
 }
 
 function render(){
+  localStorage.setItem('bou_pms_main_db', JSON.stringify(DB));
+  localStorage.setItem('bou_pms_main_state', JSON.stringify(state));
   renderSidebar();
   renderTopbar();
   renderContent();
 }
 
 function crestSVG(size){
-  return `<svg width="${size}" height="${size}" viewBox="0 0 48 48" class="brand-crest">
-    <rect x="2" y="2" width="44" height="44" rx="6" fill="#fdf6ec" stroke="#c1912f" stroke-width="2"/>
-    <path d="M24 8 L34 13 V23 C34 31 30 36 24 39 C18 36 14 31 14 23 V13 Z" fill="#651019" stroke="#c1912f" stroke-width="1"/>
-    <circle cx="24" cy="20" r="4" fill="#fdf6ec"/>
-    <path d="M18 27 h12 v3 h-12 z" fill="#fdf6ec"/>
-  </svg>`;
+  return `<img src="frontend/assets/bou-logo.webp" width="${size}" height="${size}" class="brand-crest" alt="Bank of Uganda logo">`;
 }
 
 function renderSidebar(){
@@ -514,7 +526,7 @@ function renderSidebar(){
 
   html += `<div class="sidebar-footer">
     <div class="role-switcher">
-      <label>Viewing as (demo switch)</label>
+      <label>Active user account</label>
       <select onchange="switchUser(this.value)">
         ${DB.users.map(u=>`<option value="${u.id}" ${u.id===state.userId?'selected':''}>${u.name} — ${u.roles.map(r=>ROLE_LABEL[r]).join(', ')}</option>`).join('')}
       </select>
@@ -558,7 +570,7 @@ function renderTopbar(){
     <div class="user-badge">
       <div class="avatar">${initials(u.name)}</div>
       <div class="user-meta"><div class="name">${u.name}</div><div class="role">${u.roles.map(r=>ROLE_LABEL[r]).join(', ')}</div></div>
-      <button class="btn-logout" onclick="toast('Signed out (demo only — reload to reset)','warn')">Logout</button>
+      <button class="btn-logout" onclick="toast('Signed out. Select an account to continue.','warn')">Logout</button>
     </div>
   `;
 }

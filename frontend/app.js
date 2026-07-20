@@ -742,7 +742,10 @@ function renderCallsList() {
         <span class="badge">${call.status}</span>
       </div>
       <p>${(call.themes || []).map((theme) => `<span class="badge">${escapeHtml(theme.name)}</span>`).join(" ")}</p>
-      ${call.status !== "published" ? `<button class="button gold" data-publish-call="${call.id}" type="button">Publish call</button>` : ""}
+      <div class="item-actions">
+        ${call.status === "draft" ? `<button class="button gold" data-publish-call="${call.id}" type="button">Publish call</button>` : ""}
+        ${call.status === "published" ? `<button class="button secondary" data-edit-call="${call.id}" type="button">Edit deadlines</button><button class="button danger" data-close-call="${call.id}" type="button">Close call</button>` : ""}
+      </div>
     </article>
   `).join("")}</div>`;
 }
@@ -788,7 +791,7 @@ function renderUsersTable() {
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Roles</th><th>Status</th></tr></thead>
+        <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Roles</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>
           ${state.users.map((user) => `
             <tr>
@@ -797,6 +800,11 @@ function renderUsersTable() {
               <td>${escapeHtml(user.email)}</td>
               <td>${user.roles.map((role) => `<span class="badge">${role}</span>`).join(" ")}</td>
               <td>${user.is_active ? "Active" : "Inactive"}</td>
+              <td class="item-actions">
+                <button class="button secondary" data-edit-user="${user.id}" type="button">Edit roles</button>
+                <button class="button secondary" data-reset-user="${user.id}" type="button">Reset password</button>
+                <button class="button ${user.is_active ? "danger" : "gold"}" data-toggle-user="${user.id}" data-active="${user.is_active}" type="button">${user.is_active ? "Deactivate" : "Activate"}</button>
+              </td>
             </tr>
           `).join("")}
         </tbody>
@@ -810,12 +818,13 @@ function renderDepartmentsTable() {
   return `
     <div class="table-wrap">
       <table>
-        <thead><tr><th>ID</th><th>Department name</th></tr></thead>
+        <thead><tr><th>ID</th><th>Department name</th><th>Actions</th></tr></thead>
         <tbody>
           ${state.departments.map((department) => `
             <tr>
               <td>${department.id}</td>
               <td>${escapeHtml(department.name)}</td>
+              <td class="item-actions"><button class="button secondary" data-edit-department="${department.id}" type="button">Edit</button><button class="button danger" data-disable-department="${department.id}" type="button">Deactivate</button></td>
             </tr>
           `).join("")}
         </tbody>
@@ -963,6 +972,28 @@ function bindOfficerView() {
     });
   });
 
+  document.querySelectorAll("[data-close-call]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("Close this call for papers?")) return;
+      await request("submission", `/api/calls/${button.dataset.closeCall}`, { method: "PUT", body: JSON.stringify({ status: "closed" }) });
+      showToast("Call closed.");
+      await hydrate();
+    });
+  });
+
+  document.querySelectorAll("[data-edit-call]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const call = state.calls.find((item) => String(item.id) === button.dataset.editCall);
+      const abstractDeadline = prompt("New abstract deadline (YYYY-MM-DDTHH:MM)", call.abstract_deadline.slice(0, 16));
+      if (!abstractDeadline) return;
+      const paperDeadline = prompt("New paper deadline (YYYY-MM-DDTHH:MM)", call.paper_deadline.slice(0, 16));
+      if (!paperDeadline) return;
+      await request("submission", `/api/calls/${call.id}`, { method: "PUT", body: JSON.stringify({ abstract_deadline: abstractDeadline, paper_deadline: paperDeadline }) });
+      showToast("Call deadlines updated.");
+      await hydrate();
+    });
+  });
+
   const assignmentForm = document.getElementById("assignment-form");
   if (assignmentForm) {
     assignmentForm.addEventListener("submit", async (event) => {
@@ -1067,6 +1098,58 @@ function bindAdminView() {
   }
 
   bindMasterForm("department-form", "departments", "Department added.");
+
+  document.querySelectorAll("[data-edit-user]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const user = state.users.find((item) => String(item.id) === button.dataset.editUser);
+      const value = prompt(`Roles for ${user.name} (comma separated)`, user.roles.join(", "));
+      if (!value) return;
+      const selected = value.split(",").map((role) => role.trim()).filter((role) => roles.includes(role));
+      await request("identity", `/api/users/${user.id}`, { method: "PUT", body: JSON.stringify({ roles: selected }) });
+      showToast("User roles updated.");
+      await hydrate();
+    });
+  });
+
+  document.querySelectorAll("[data-reset-user]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const password = prompt("Enter a new temporary password (minimum 8 characters)");
+      if (!password) return;
+      if (password.length < 8) return showToast("Password must be at least 8 characters.");
+      await request("identity", `/api/users/${button.dataset.resetUser}`, { method: "PUT", body: JSON.stringify({ password }) });
+      showToast("Temporary password set.");
+    });
+  });
+
+  document.querySelectorAll("[data-toggle-user]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const isActive = button.dataset.active === "true";
+      if (isActive && !confirm("Deactivate this account?")) return;
+      await request("identity", `/api/users/${button.dataset.toggleUser}`, { method: "PUT", body: JSON.stringify({ is_active: !isActive }) });
+      showToast(isActive ? "Account deactivated." : "Account activated.");
+      await hydrate();
+    });
+  });
+
+  document.querySelectorAll("[data-edit-department]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      const department = state.departments.find((item) => String(item.id) === button.dataset.editDepartment);
+      const name = prompt("Department name", department.name);
+      if (!name) return;
+      await request("masterdata", `/api/departments/${department.id}`, { method: "PUT", body: JSON.stringify({ name }) });
+      showToast("Department updated.");
+      await hydrate();
+    });
+  });
+
+  document.querySelectorAll("[data-disable-department]").forEach((button) => {
+    button.addEventListener("click", async () => {
+      if (!confirm("Deactivate this department?")) return;
+      await request("masterdata", `/api/departments/${button.dataset.disableDepartment}`, { method: "PUT", body: JSON.stringify({ is_active: false }) });
+      showToast("Department deactivated.");
+      await hydrate();
+    });
+  });
 }
 
 function bindMasterForm(formId, path, successMessage) {
