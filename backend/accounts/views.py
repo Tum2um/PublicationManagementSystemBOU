@@ -1,3 +1,5 @@
+"""Account lifecycle, sign-in, role assignment, and audit-log endpoints."""
+
 from django.contrib.auth import authenticate
 from django.contrib.auth.password_validation import validate_password
 from django.conf import settings
@@ -35,6 +37,7 @@ def health(_request):
 
 
 def apply_roles(user, role_names):
+    """Replace a user's roles with the validated role set supplied by an admin."""
     user.groups.clear()
     for role_name in role_names or ["Author"]:
         if role_name in ROLE_NAMES:
@@ -43,6 +46,7 @@ def apply_roles(user, role_names):
 
 
 def create_user_from_payload(data):
+    """Validate an account payload and create a Django user plus role groups."""
     name = data.get("name", "").strip()
     email = data.get("email", "").strip().lower()
     password = data.get("password", "")

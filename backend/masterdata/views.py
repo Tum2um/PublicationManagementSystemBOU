@@ -1,3 +1,5 @@
+"""Administrative departments, research themes, and content-template endpoints."""
+
 from pathlib import Path
 
 from django.http import FileResponse, JsonResponse

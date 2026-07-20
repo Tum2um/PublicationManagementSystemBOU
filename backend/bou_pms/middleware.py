@@ -1,10 +1,12 @@
-from django.http import HttpResponse
+"""CORS preflight handling and response security headers."""
 
+from django.http import HttpResponse
 
 from django.conf import settings
 
 
 class CorsMiddleware:
+    """Allow credentialed API access only from configured frontend origins."""
     def __init__(self, get_response):
         self.get_response = get_response
 

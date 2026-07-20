@@ -1,3 +1,5 @@
+"""In-application notification persistence and creation helper."""
+
 from django.conf import settings
 from django.db import models
 

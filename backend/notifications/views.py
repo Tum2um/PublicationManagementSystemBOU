@@ -1,3 +1,5 @@
+"""User-scoped notification read-state and administration endpoints."""
+
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 

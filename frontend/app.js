@@ -66,6 +66,8 @@ function showToast(message) {
 }
 
 async function request(service, path, options = {}) {
+  // All API calls include the HTTP-only session cookie. FormData sets its own
+  // multipart boundary, so only JSON requests receive an explicit content type.
   const headers = options.headers || {};
   if (!(options.body instanceof FormData)) {
     headers["Content-Type"] = "application/json";
@@ -1646,3 +1648,8 @@ function escapeAttribute(value) {
 }
 
 hydrate();
+/*
+ * Dependency-free single-page client for the BOU Publication Management System.
+ * Authorization is always enforced by Django; role checks here only shape the UI.
+ * The session token lives in an HTTP-only cookie and is never available to JS.
+ */

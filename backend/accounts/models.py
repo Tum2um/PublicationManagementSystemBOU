@@ -1,8 +1,11 @@
+"""Authentication-session and security-audit persistence."""
+
 from django.conf import settings
 from django.db import models
 
 
 class AuthToken(models.Model):
+    """A revocable API session; ``token_hash`` never contains the raw token."""
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="api_tokens")
     token_hash = models.CharField(max_length=64, unique=True)
     expires_at = models.DateTimeField()
@@ -14,6 +17,7 @@ class AuthToken(models.Model):
 
 
 class AuditLog(models.Model):
+    """A bounded application audit trail for security and workflow events."""
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.SET_NULL, null=True, blank=True)
     actor_email = models.EmailField(blank=True)
     action = models.CharField(max_length=250)
@@ -28,6 +32,7 @@ class AuditLog(models.Model):
 
 
 def record_audit(user, action, entity_type="", entity_id="", outcome="success", details=""):
+    """Record an auditable action while retaining an actor email snapshot."""
     return AuditLog.objects.create(
         user=user if getattr(user, "is_authenticated", False) else None,
         actor_email=getattr(user, "email", "") or "",

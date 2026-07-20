@@ -1,31 +1,25 @@
-# BOU PMS Frontend
+# Frontend
 
-This is the active browser frontend for the Publication Management System.
-It is dependency-free HTML, CSS, and JavaScript and communicates with the
-Django API in `backend/`.
+The active browser client is a dependency-free single-page application built
+with HTML, CSS, and vanilla JavaScript.
 
-## Run
+- `index.html` provides the application mount point.
+- `app.js` contains API access, session state, role navigation, views, forms,
+  and event handlers.
+- `styles.css` contains the shared design system and responsive layouts.
+- `assets/` contains static visual assets.
 
-From the project root:
+The frontend never decides whether an operation is authorized. Its role checks
+only control navigation and presentation; Django enforces every permission.
+Authentication uses an HTTP-only cookie, so JavaScript must make API requests
+with `credentials: "include"` and must never store a session token.
+
+Run the frontend and backend together from the repository root:
 
 ```bash
 python3 setup_local.py
 python3 run_all.py
 ```
 
-Then open:
-
-```text
-http://127.0.0.1:3000
-```
-
-## Local Login
-
-The frontend has no public registration page. Accounts are created by the System Admin.
-
-For local development, the Django backend seeds this account:
-
-```text
-Email: admin@bou.or.ug
-Password: Admin123!
-```
+See the project-level [README](../README.md) for installation, configuration,
+workflow, security, testing, API, and deployment documentation.

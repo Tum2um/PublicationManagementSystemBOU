@@ -1,3 +1,5 @@
+"""Django settings for local development and environment-driven deployment."""
+
 import os
 from pathlib import Path
 
@@ -7,6 +9,8 @@ from django.core.exceptions import ImproperlyConfigured
 BASE_DIR = Path(__file__).resolve().parent.parent
 
 DEBUG = os.getenv("DJANGO_DEBUG", "true").lower() == "true"
+# The fallback exists only to make first-time local setup frictionless.
+# Production startup deliberately fails unless a separate secret is supplied.
 SECRET_KEY = os.getenv("DJANGO_SECRET_KEY", "local-development-only-change-before-deployment-8f1d6a2c9e4b7")
 if not DEBUG and "DJANGO_SECRET_KEY" not in os.environ:
     raise ImproperlyConfigured("DJANGO_SECRET_KEY must be set when DJANGO_DEBUG is false")
@@ -89,6 +93,7 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
 AUTH_TOKEN_COOKIE = "bou_session"
 AUTH_TOKEN_MAX_AGE = 8 * 60 * 60
+# Secure cookies are mandatory by default whenever DEBUG is disabled.
 AUTH_TOKEN_COOKIE_SECURE = os.getenv("AUTH_COOKIE_SECURE", "false" if DEBUG else "true").lower() == "true"
 AUTH_TOKEN_COOKIE_SAMESITE = os.getenv("AUTH_COOKIE_SAMESITE", "Lax")
 

@@ -1,3 +1,5 @@
+"""Administrator-managed reference data and reusable content templates."""
+
 from django.db import models
 
 

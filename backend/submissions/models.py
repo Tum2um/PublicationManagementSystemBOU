@@ -1,3 +1,5 @@
+"""Core publication-call, submission, author, and document-version entities."""
+
 from django.conf import settings
 from django.db import models
 
@@ -50,6 +52,7 @@ class SubmissionAuthor(models.Model):
 
 
 class DocumentVersion(models.Model):
+    """An immutable upload record; newer files create higher version numbers."""
     submission = models.ForeignKey(Submission, on_delete=models.CASCADE, related_name="documents")
     doc_type = models.CharField(max_length=20)
     file = models.FileField(upload_to="submission_documents/")

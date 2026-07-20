@@ -1,3 +1,9 @@
+"""Shared JSON, authentication, and role-authorization helpers for the API.
+
+Tokens are opaque random values. Only their SHA-256 digests are stored, so a
+database read does not directly disclose usable session credentials.
+"""
+
 import hashlib
 import json
 import secrets
@@ -16,6 +22,7 @@ TOKEN_MAX_AGE_SECONDS = settings.AUTH_TOKEN_MAX_AGE
 
 
 def parse_json(request):
+    """Decode a JSON request body, returning ``None`` for malformed JSON."""
     if not request.body:
         return {}
     try:
@@ -43,6 +50,7 @@ def serialize_user(user):
 
 
 def create_token(user):
+    """Create a revocable, expiring API session and return its raw token once."""
     raw_token = secrets.token_urlsafe(48)
     AuthToken.objects.create(
         user=user,
@@ -53,6 +61,7 @@ def create_token(user):
 
 
 def revoke_token(raw_token):
+    """Revoke a presented token without storing or logging its raw value."""
     if raw_token:
         AuthToken.objects.filter(
             token_hash=hashlib.sha256(raw_token.encode()).hexdigest(),
@@ -61,6 +70,7 @@ def revoke_token(raw_token):
 
 
 def get_user_from_request(request):
+    """Resolve an active user from a bearer token or the HTTP-only cookie."""
     auth_header = request.headers.get("Authorization", "")
     token = auth_header.split(" ", 1)[1] if auth_header.startswith("Bearer ") else request.COOKIES.get(settings.AUTH_TOKEN_COOKIE)
     if not token:
@@ -77,6 +87,11 @@ def get_user_from_request(request):
 
 
 def token_required(required_roles=None):
+    """Require authentication and, when supplied, membership in any given role.
+
+    Cookie-authenticated writes also require a trusted Origin. This is the API's
+    CSRF defence because the browser attaches the HTTP-only cookie automatically.
+    """
     def decorator(view_func):
         @wraps(view_func)
         def wrapped(request, *args, **kwargs):

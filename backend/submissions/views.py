@@ -1,3 +1,5 @@
+"""Calls, submissions, workflow transitions, publications, and documents."""
+
 from django.core.files.storage import default_storage
 from django.core.validators import validate_email
 from django.core.exceptions import ValidationError
@@ -22,6 +24,7 @@ REVIEWER_ROLES = {"InternalReviewer", "ExternalReviewer"}
 
 
 def can_access_submission(user, roles, submission):
+    """Apply object-level access rules for authors, workflow staff, and reviewers."""
     return (
         submission.corresponding_author_id == user.id
         or bool(WORKFLOW_ROLES.intersection(roles))
@@ -42,6 +45,7 @@ def serialize_call(call):
 
 
 def tracking_steps(submission):
+    """Convert the stored workflow state into the ordered tracker used by the UI."""
     stages = [
         ("submitted", "Submitted"),
         ("assigned_internal_reviewer", "Internal reviewer assigned"),
@@ -460,6 +464,7 @@ def submission_documents(request, submission_id):
 
 
 def document_download(request, document_id):
+    """Stream a document after checking private or published-paper access rules."""
     if request.method != "GET":
         return json_error("Method not allowed", 405)
     document = get_object_or_404(DocumentVersion.objects.select_related("submission"), id=document_id)

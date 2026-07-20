@@ -1,3 +1,5 @@
+"""Reviewer assignment and comment entities for the verification workflow."""
+
 from django.conf import settings
 from django.db import models
 
