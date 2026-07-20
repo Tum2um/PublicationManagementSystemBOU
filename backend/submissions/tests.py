@@ -6,7 +6,7 @@ from django.test import TestCase
 from django.utils import timezone
 
 from bou_pms.api import create_token
-from submissions.models import Call
+from submissions.models import Call, Submission, Theme
 
 
 class CallManagementTests(TestCase):
@@ -43,3 +43,24 @@ class CallManagementTests(TestCase):
             **self.headers,
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_research_officer_cannot_make_final_publication_decision(self):
+        author = User.objects.create_user("author@bou.or.ug", password="Author123!")
+        theme = Theme.objects.create(call=self.call, name="Financial Stability")
+        submission = Submission.objects.create(call=self.call, theme=theme, title="Test paper", corresponding_author=author)
+        response = self.client.put(
+            f"/api/submissions/{submission.id}/status",
+            data=json.dumps({"status": "published", "current_stage": "published"}),
+            content_type="application/json",
+            **self.headers,
+        )
+        self.assertEqual(response.status_code, 403)
+
+    def test_public_repository_lists_only_published_submissions(self):
+        author = User.objects.create_user("public-author@bou.or.ug", first_name="Public", last_name="Author")
+        theme = Theme.objects.create(call=self.call, name="Monetary Policy")
+        Submission.objects.create(call=self.call, theme=theme, title="Published paper", corresponding_author=author, status="published", publication_reference="BOU-WP-2026-001")
+        Submission.objects.create(call=self.call, theme=theme, title="Draft paper", corresponding_author=author, status="submitted")
+        response = self.client.get("/api/publications")
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual([item["title"] for item in response.json()], ["Published paper"])

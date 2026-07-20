@@ -35,3 +35,11 @@ class UserManagementTests(TestCase):
             **self.headers,
         )
         self.assertEqual(response.status_code, 400)
+
+    def test_admin_can_view_audit_log(self):
+        from accounts.models import record_audit
+
+        record_audit(self.admin, "Test action", "user", self.author.id)
+        response = self.client.get("/api/audit-logs", **self.headers)
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()[0]["action"], "Test action")

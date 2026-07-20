@@ -1,7 +1,9 @@
+from django.contrib.auth.models import User
 from django.http import JsonResponse
 from django.views.decorators.csrf import csrf_exempt
 
 from bou_pms.api import json_error, parse_json, token_required
+from accounts.models import record_audit
 from notifications.models import create_notification
 from reviews.models import ReviewAssignment, ReviewComment
 from submissions.models import Submission
@@ -23,6 +25,9 @@ def serialize_assignment(assignment):
         "id": assignment.id,
         "submission_id": assignment.submission_id,
         "reviewer_id": assignment.reviewer_id,
+        "reviewer_name": assignment.reviewer.get_full_name() or assignment.reviewer.email,
+        "reviewer_email": assignment.reviewer.email,
+        "submission_title": assignment.submission.title,
         "reviewer_type": assignment.reviewer_type,
         "status": assignment.status,
         "assigned_by": assignment.assigned_by_id,
@@ -56,9 +61,22 @@ def review_assignments(request):
             submission = Submission.objects.get(id=data["submission_id"])
         except Submission.DoesNotExist:
             return json_error("Submission not found", 404)
+        try:
+            reviewer = User.objects.get(id=data["reviewer_id"], is_active=True)
+        except User.DoesNotExist:
+            return json_error("Reviewer not found", 404)
+        required_role = "InternalReviewer" if data["reviewer_type"] == "internal" else "ExternalReviewer"
+        if not reviewer.groups.filter(name=required_role).exists():
+            return json_error(f"Selected user is not an {required_role}", 400)
+        author_emails = {email.lower() for email in submission.authors.values_list("email", flat=True)}
+        author_emails.add(submission.corresponding_author.email.lower())
+        if reviewer.email.lower() in author_emails:
+            return json_error("Conflict of interest: the reviewer is an author or co-author", 409)
+        if ReviewAssignment.objects.filter(submission=submission, reviewer=reviewer, reviewer_type=data["reviewer_type"]).exclude(status="returned_to_research_officer").exists():
+            return json_error("This reviewer is already assigned to the submission", 409)
         assignment = ReviewAssignment.objects.create(
             submission=submission,
-            reviewer_id=data["reviewer_id"],
+            reviewer=reviewer,
             reviewer_type=data["reviewer_type"],
             assigned_by=request.user,
         )
@@ -72,6 +90,7 @@ def review_assignments(request):
             "review",
             submission.id,
         )
+        record_audit(request.user, "Created reviewer assignment", "review_assignment", assignment.id, details=data["reviewer_type"])
         return JsonResponse({
             "message": "Review assignment created",
             "assignment_id": assignment.id,
@@ -98,6 +117,7 @@ def verify_assignment(request, assignment_id):
     assignment.verified_by = request.user
     assignment.verify_reason = data.get("reason", "")
     assignment.save()
+    record_audit(request.user, "Verified reviewer assignment", "review_assignment", assignment.id, details=assignment.status)
     if approved:
         assignment.submission.current_stage = "internal_review" if assignment.reviewer_type == "internal" else "external_review"
         assignment.submission.status = assignment.submission.current_stage
@@ -143,6 +163,7 @@ def assignment_comments(request, assignment_id):
     )
     assignment.status = "comments_submitted"
     assignment.save()
+    record_audit(request.user, "Submitted reviewer comments", "review_comment", comment.id, details=comment.recommendation)
     create_notification(
         assignment.assigned_by_id,
         "Reviewer comments submitted",
@@ -170,7 +191,10 @@ def verify_comment(request, comment_id):
     comment.verification_reason = data.get("reason", "")
     comment.verified_by = request.user
     comment.save()
+    record_audit(request.user, "Verified reviewer comments", "review_comment", comment.id, details=comment.verification_status)
     if not approved:
+        comment.assignment.status = "verified"
+        comment.assignment.save()
         create_notification(
             comment.assignment.reviewer_id,
             "Review comments returned",
@@ -178,4 +202,26 @@ def verify_comment(request, comment_id):
             "review",
             comment.assignment.submission_id,
         )
+    else:
+        comment.assignment.status = "comments_verified"
+        comment.assignment.save()
+        submission = comment.assignment.submission
+        needs_revision = "revision" in comment.recommendation.lower()
+        if needs_revision:
+            submission.status = "author_revision"
+            submission.current_stage = "author_revision"
+            create_notification(
+                submission.corresponding_author_id,
+                "Revision requested",
+                comment.comments,
+                "review",
+                submission.id,
+            )
+        elif comment.assignment.reviewer_type == "external":
+            submission.status = "editorial_board"
+            submission.current_stage = "editorial_board"
+        else:
+            submission.status = "internal_review_complete"
+            submission.current_stage = "internal_review"
+        submission.save()
     return JsonResponse({"message": "Review comment verification recorded", "status": comment.verification_status})

@@ -10,6 +10,7 @@ from bou_pms.api import (
     serialize_user,
     token_required,
 )
+from accounts.models import AuditLog, record_audit
 
 
 ROLE_NAMES = [
@@ -67,11 +68,13 @@ def login(request):
     password = data.get("password", "")
     user = authenticate(username=email, password=password)
     if not user:
+        AuditLog.objects.create(actor_email=email, action="Login attempt", outcome="failed", details="Invalid credentials")
         return json_error("Invalid email or password", 401)
     if not user.is_active:
         return json_error("Account is disabled", 403)
 
     serialized = serialize_user(user)
+    record_audit(user, "Login")
     return JsonResponse({
         "token": create_token(user),
         "user_id": user.id,
@@ -101,6 +104,7 @@ def users(request):
         if error:
             message, status = error
             return json_error(message, status)
+        record_audit(request.user, "Created user account", "user", user.id, details=user.email)
         return JsonResponse({"message": "User created successfully", **serialize_user(user)}, status=201)
 
     return json_error("Method not allowed", 405)
@@ -132,4 +136,26 @@ def user_detail(request, user_id):
     if data.get("password"):
         user.set_password(data["password"])
     user.save()
+    record_audit(request.user, "Updated user account", "user", user.id, details=user.email)
     return JsonResponse({"message": "User account updated", **serialize_user(user)})
+
+
+@token_required(required_roles=["Admin"])
+def audit_logs(request):
+    if request.method != "GET":
+        return json_error("Method not allowed", 405)
+    items = AuditLog.objects.select_related("user").all()[:500]
+    return JsonResponse([
+        {
+            "id": item.id,
+            "user": item.user.get_full_name() if item.user and item.user.get_full_name() else item.actor_email or "System",
+            "email": item.actor_email,
+            "action": item.action,
+            "entity_type": item.entity_type,
+            "entity_id": item.entity_id,
+            "outcome": item.outcome,
+            "details": item.details,
+            "created_at": item.created_at.isoformat(),
+        }
+        for item in items
+    ], safe=False)

@@ -15,7 +15,11 @@ const state = {
   assignments: [],
   notifications: [],
   departments: [],
-  users: []
+  users: [],
+  themes: [],
+  templates: [],
+  auditLogs: [],
+  publications: []
 };
 
 const roles = [
@@ -140,6 +144,9 @@ async function loadSharedData() {
     request("submission", "/api/submissions").then((data) => (state.submissions = data)).catch(() => (state.submissions = [])),
     request("notification", `/notifications/user/${state.user.id}`).then((data) => (state.notifications = data.notifications || [])).catch(() => (state.notifications = [])),
     request("masterdata", "/api/departments").then((data) => (state.departments = data)).catch(() => (state.departments = []))
+    ,request("masterdata", "/api/themes").then((data) => (state.themes = data)).catch(() => (state.themes = []))
+    ,request("masterdata", "/api/templates").then((data) => (state.templates = data)).catch(() => (state.templates = []))
+    ,request("submission", "/api/publications").then((data) => (state.publications = data)).catch(() => (state.publications = []))
   ];
 
   if (hasAnyRole(["Admin", "ResearchOfficer", "EditorialBoard", "InternalReviewer", "ExternalReviewer"])) {
@@ -147,6 +154,9 @@ async function loadSharedData() {
   }
   if (hasAnyRole(["Admin", "ResearchOfficer", "EditorialBoard"])) {
     tasks.push(request("identity", "/api/users").then((data) => (state.users = data)).catch(() => (state.users = [])));
+  }
+  if (hasRole("Admin")) {
+    tasks.push(request("identity", "/api/audit-logs").then((data) => (state.auditLogs = data)).catch(() => (state.auditLogs = [])));
   }
 
   await Promise.all(tasks);
@@ -192,7 +202,7 @@ function renderLogin() {
             </div>
             <button class="button" type="submit">Sign in</button>
           </form>
-          <p class="muted" style="margin-top:18px;font-size:13px;">Local dev admin: admin@bou.or.ug / Admin123!</p>
+          <button class="button secondary full-button" id="public-repository-btn" type="button">Browse published working papers</button>
         </div>
       </section>
     </main>
@@ -218,16 +228,49 @@ function renderLogin() {
       message.className = "message show";
     }
   });
+  document.getElementById("public-repository-btn").addEventListener("click", renderPublicRepository);
+}
+
+async function renderPublicRepository() {
+  document.getElementById("app").innerHTML = `<main class="public-page"><div class="public-hero">${logoMarkup("large")}<div><span class="eyebrow">Bank of Uganda</span><h1>Working Paper Series</h1><p>Browse research approved through the Publication Management System.</p></div><button class="button secondary" id="back-to-login" type="button">Staff sign in</button></div><section class="panel"><div class="empty">Loading publications…</div></section></main>`;
+  document.getElementById("back-to-login").addEventListener("click", renderLogin);
+  try {
+    const response = await fetch(`${API.submission}/api/publications`);
+    if (!response.ok) throw new Error("Repository is currently unavailable.");
+    state.publications = await response.json();
+    document.querySelector(".public-page .panel").innerHTML = `<div class="publication-grid">${state.publications.length ? state.publications.map((item) => `<article class="publication-card"><span class="badge">${escapeHtml(item.publication_reference || `BOU-WP-${item.id}`)}</span><h3>${escapeHtml(item.title)}</h3><p class="muted">${escapeHtml(item.author)} · ${escapeHtml(item.theme_name)} · ${escapeHtml(item.fiscal_year)}</p>${item.paper ? `<a class="button secondary" href="${API.submission}${item.paper}" target="_blank" rel="noopener">Download paper</a>` : ""}</article>`).join("") : `<div class="empty">No papers have been published yet.</div>`}</div>`;
+  } catch (error) {
+    document.querySelector(".public-page .panel").innerHTML = `<div class="message show">${escapeHtml(error.message)}</div>`;
+  }
 }
 
 function navItems() {
-  const items = [{ id: "dashboard", label: "Dashboard" }];
-  if (hasRole("Author")) items.push({ id: "author", label: "Author Workspace" });
-  if (hasRole("ResearchOfficer")) items.push({ id: "officer", label: "Research Officer" });
-  if (hasRole("EditorialBoard")) items.push({ id: "editorial", label: "Editorial Board" });
-  if (hasAnyRole(["InternalReviewer", "ExternalReviewer"])) items.push({ id: "reviewer", label: "Reviewer Workspace" });
-  if (hasRole("Admin")) items.push({ id: "admin", label: "Admin" });
-  items.push({ id: "notifications", label: `Notifications (${state.notifications.filter((item) => !item.is_read).length})` });
+  const items = [{ id: "dashboard", label: "Dashboard", group: "Overview" }];
+  if (hasRole("Admin")) items.push(
+    { id: "admin-users", label: "User Accounts", group: "Access control" },
+    { id: "admin-departments", label: "Departments", group: "Master data" },
+    { id: "admin-themes", label: "Research Themes", group: "Master data" },
+    { id: "admin-templates", label: "Templates & Notices", group: "Master data" },
+    { id: "publications", label: "Public Repository", group: "Oversight" },
+    { id: "admin-audit", label: "Audit Log", group: "Oversight" }
+  );
+  if (hasRole("ResearchOfficer")) items.push(
+    { id: "officer-calls", label: "Manage Calls", group: "Research workflow" },
+    { id: "officer-assign", label: "Reviewer Assignment", group: "Research workflow" },
+    { id: "officer-verify", label: "Verification Queue", group: "Research workflow" },
+    { id: "reports", label: "Reports", group: "Insights" }
+  );
+  if (hasRole("EditorialBoard")) items.push(
+    { id: "editorial-verify", label: "Verification Queue", group: "Editorial workflow" },
+    { id: "editorial-publish", label: "Approve for Publishing", group: "Editorial workflow" },
+    { id: "reports", label: "Reports", group: "Insights" }
+  );
+  if (hasAnyRole(["InternalReviewer", "ExternalReviewer"])) items.push({ id: "reviewer-assignments", label: "My Assignments", group: "Review workspace" });
+  if (hasRole("Author")) items.push(
+    { id: "author-submit", label: "Submit Abstract / Paper", group: "Author workspace" },
+    { id: "author-submissions", label: "My Submissions", group: "Author workspace" }
+  );
+  items.push({ id: "notifications", label: `Notifications (${state.notifications.filter((item) => !item.is_read).length})`, group: "Alerts" });
   return items;
 }
 
@@ -248,7 +291,7 @@ function renderShell() {
           </div>
         </div>
         <nav class="nav">
-          ${nav.map((item) => `<button data-view="${item.id}" class="${state.view === item.id ? "active" : ""}">${item.label}</button>`).join("")}
+          ${nav.map((item, index) => `${index === 0 || nav[index - 1].group !== item.group ? `<span class="nav-group-label">${item.group}</span>` : ""}<button data-view="${item.id}" class="${state.view === item.id ? "active" : ""}">${item.label}</button>`).join("")}
         </nav>
         <button class="button gold" id="refresh-btn" type="button">Refresh data</button>
       </aside>
@@ -269,6 +312,7 @@ function renderShell() {
         </div>
         <div id="view-root">${renderCurrentView()}</div>
       </main>
+      <dialog id="detail-dialog"><button class="dialog-close" type="button" aria-label="Close">×</button><div id="dialog-content"></div></dialog>
     </div>
   `;
 
@@ -287,22 +331,42 @@ function renderShell() {
 function pageTitle() {
   const map = {
     dashboard: "Dashboard",
-    author: "Author Workspace",
-    officer: "Research Officer Workspace",
-    editorial: "Editorial Board Workspace",
-    reviewer: "Reviewer Workspace",
-    admin: "System Admin",
+    "author-submit": "Submit Abstract or Working Paper",
+    "author-submissions": "My Submissions",
+    "officer-calls": "Manage Calls",
+    "officer-assign": "Reviewer Assignment",
+    "officer-verify": "Verification Queue",
+    "editorial-verify": "Assignment Verification",
+    "editorial-publish": "Approve for Publishing",
+    "reviewer-assignments": "My Review Assignments",
+    "admin-users": "User Accounts",
+    "admin-departments": "Departments",
+    "admin-themes": "Research Themes",
+    "admin-templates": "Templates & Notices",
+    "admin-audit": "Audit Log",
+    publications: "Public Working Paper Repository",
+    reports: "Reports & Insights",
     notifications: "Notifications"
   };
   return map[state.view] || "Dashboard";
 }
 
 function renderCurrentView() {
-  if (state.view === "author") return renderAuthorView();
-  if (state.view === "officer") return renderOfficerView();
-  if (state.view === "editorial") return renderEditorialView();
-  if (state.view === "reviewer") return renderReviewerView();
-  if (state.view === "admin") return renderAdminView();
+  if (state.view === "author-submit") return renderAuthorSubmitPage();
+  if (state.view === "author-submissions") return renderAuthorSubmissionsPage();
+  if (state.view === "officer-calls") return renderOfficerCallsPage();
+  if (state.view === "officer-assign") return renderOfficerAssignmentPage();
+  if (state.view === "officer-verify") return renderOfficerVerificationPage();
+  if (state.view === "editorial-verify") return renderEditorialVerificationPage();
+  if (state.view === "editorial-publish") return renderEditorialPublishingPage();
+  if (state.view === "reviewer-assignments") return renderReviewerView();
+  if (state.view === "admin-users") return renderAdminUsersPage();
+  if (state.view === "admin-departments") return renderAdminDepartmentsPage();
+  if (state.view === "admin-themes") return renderAdminThemesPage();
+  if (state.view === "admin-templates") return renderAdminTemplatesPage();
+  if (state.view === "admin-audit") return renderAuditPage();
+  if (state.view === "publications") return renderPublicationsPage();
+  if (state.view === "reports") return renderReportsPage();
   if (state.view === "notifications") return renderNotificationsView();
   return renderDashboard();
 }
@@ -349,6 +413,90 @@ function metricCard(label, value, detail) {
       <span>${detail}</span>
     </div>
   `;
+}
+
+function pageHeader(eyebrow, title, description = "", actions = "") {
+  return `<div class="section-title"><div><span class="eyebrow">${eyebrow}</span><h2>${title}</h2>${description ? `<p class="muted">${description}</p>` : ""}</div>${actions}</div>`;
+}
+
+function submissionFormMarkup() {
+  const publishedCalls = state.calls.filter((call) => call.status === "published");
+  return `<form id="submission-form" class="form-grid">
+    <div class="form-row"><label>Call for papers</label><select name="call_id" id="call-select" required><option value="">Select a published call</option>${publishedCalls.map((call) => `<option value="${call.id}">${escapeHtml(call.fiscal_year)} — ${escapeHtml(call.description)}</option>`).join("")}</select></div>
+    <div class="form-row"><label>Research theme</label><select name="theme_id" id="theme-select" required><option value="">Select a call first</option></select></div>
+    <div class="form-row"><label>Abstract / working paper title</label><input name="title" maxlength="300" required placeholder="Enter the full research title"></div>
+    <div class="subpanel"><strong>Authors</strong><p class="muted">The first row is the corresponding author. Every co-author requires a valid email and either a BOU department or institution.</p><div id="authors-box" class="grid"></div><button class="button secondary" id="add-author-btn" type="button">+ Add co-author</button></div>
+    <button class="button" type="submit">Submit to Research Department</button>
+  </form>`;
+}
+
+function renderAuthorSubmitPage() {
+  return `<section class="grid content-layout"><div class="panel">${pageHeader("Submission", "Submit an abstract or working paper", "Complete the authorship details, then upload the abstract or paper from My Submissions after creating the record.")}${submissionFormMarkup()}</div><aside class="panel help-panel"><span class="eyebrow">Before submitting</span><h3>Submission checklist</h3><ul class="check-list"><li>Select an active call and matching theme.</li><li>Use the logged-in author as corresponding author.</li><li>Add all co-authors with valid affiliations.</li><li>Upload PDF or DOCX files up to 10 MB.</li></ul></aside></section>`;
+}
+
+function renderAuthorSubmissionsPage() {
+  return `<section class="panel">${pageHeader("Tracking", "My submissions", "Track every stage, upload new document versions, and respond when revision is requested.")}${renderSubmissionList(state.submissions, true)}</section>`;
+}
+
+function callFormMarkup() {
+  return `<form id="call-form" class="form-grid"><div class="inline-fields"><div class="form-row"><label>Fiscal year</label><input name="fiscal_year" required placeholder="2026/2027"></div><div class="form-row"><label>Abstract deadline</label><input name="abstract_deadline" type="datetime-local" required></div><div class="form-row"><label>Paper deadline</label><input name="paper_deadline" type="datetime-local" required></div></div><div class="form-row"><label>Description</label><textarea name="description" required placeholder="Purpose and scope of this call"></textarea></div><div class="form-row"><label>Approved research themes</label><div class="theme-picker">${state.themes.filter((item) => item.is_active).map((item) => `<label><input type="checkbox" name="theme_choice" value="${escapeAttribute(item.name)}"> ${escapeHtml(item.name)}</label>`).join("") || `<span class="muted">No master themes configured; enter themes below.</span>`}</div></div><div class="form-row"><label>Additional themes (one per line)</label><textarea name="themes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea></div><button class="button" type="submit">Create draft call</button></form>`;
+}
+
+function renderOfficerCallsPage() {
+  return `<section class="grid two"><div class="panel">${pageHeader("Manage calls", "Create call for papers", "New calls remain drafts until explicitly published.")}${callFormMarkup()}</div><div class="panel">${pageHeader("Call register", "Current and previous calls")}${renderCallsList()}</div></section>`;
+}
+
+function assignmentFormMarkup() {
+  return `<form id="assignment-form" class="form-grid"><div class="form-row"><label>Submission</label><select name="submission_id" required><option value="">Select submission</option>${state.submissions.map((item) => `<option value="${item.id}">#${item.id} — ${escapeHtml(item.title)}</option>`).join("")}</select></div><div class="inline-fields"><div class="form-row"><label>Reviewer type</label><select name="reviewer_type" id="reviewer-type" required><option value="internal">Internal reviewer</option><option value="external">External reviewer</option></select></div><div class="form-row"><label>Reviewer</label><select name="reviewer_id" required><option value="">Select reviewer</option>${reviewerOptions()}</select></div></div><div id="coi-result" class="message"></div><button class="button" type="submit">Send assignment for Editorial Board verification</button></form>`;
+}
+
+function renderOfficerAssignmentPage() {
+  return `<section class="grid two"><div class="panel">${pageHeader("Reviewer assignment", "Assign an internal or external reviewer", "Assignments require Editorial Board verification before the reviewer can act.")}${assignmentFormMarkup()}</div><div class="panel">${pageHeader("Assignment register", "Recent assignments")}${renderAssignmentList(state.assignments)}</div></section>`;
+}
+
+function renderOfficerVerificationPage() {
+  return `<section class="panel">${pageHeader("Verification queue", "Verify reviewer comments and revisions", "Approve complete reviewer feedback or return it with a reason.")}${renderOfficerQueues()}</section>`;
+}
+
+function renderEditorialVerificationPage() {
+  return `<section class="panel">${pageHeader("Editorial verification", "Reviewer assignment queue", "Confirm appropriate reviewer selection or return the assignment to the Research Officer with a reason.")}${renderAssignmentList(state.assignments.filter((item) => item.status === "pending_editorial_verification" || item.status === "returned_to_research_officer"), false, true)}</section>`;
+}
+
+function renderEditorialPublishingPage() {
+  return `<section class="panel">${pageHeader("Final stage", "Approve for publishing", "Record the Editorial Board’s final decision and publication reference.")}${renderFinalDecisionList()}</section>`;
+}
+
+function userFormMarkup() {
+  return `<form id="user-form" class="form-grid"><div class="inline-fields"><div class="form-row"><label>Full name</label><input name="name" required></div><div class="form-row"><label>Email address</label><input name="email" type="email" required></div></div><div class="form-row"><label>Temporary password</label><input name="password" type="password" minlength="8" required></div><div class="form-row"><label>Roles (Ctrl/Cmd-click for multiple)</label><select name="roles" multiple size="6">${roles.map((role) => `<option value="${role}">${role}</option>`).join("")}</select></div><button class="button" type="submit">Create user account</button></form>`;
+}
+
+function renderAdminUsersPage() {
+  return `<section class="grid two admin-split"><div class="panel">${pageHeader("Access control", "Create user account", "There is no public registration; administrators provision every account.")}${userFormMarkup()}</div><div class="panel wide-panel">${pageHeader("Directory", "Current user accounts")}${renderUsersTable()}</div></section>`;
+}
+
+function renderAdminDepartmentsPage() {
+  return `<section class="panel">${pageHeader("Master data", "BOU departments", "Departments populate staff co-author affiliation fields.")}<form id="department-form" class="inline-create"><div class="form-row"><label>Department name</label><input name="name" required></div><button class="button" type="submit">Add department</button></form>${renderDepartmentsTable()}</section>`;
+}
+
+function renderAdminThemesPage() {
+  return `<section class="panel">${pageHeader("Master data", "Research themes", "Maintain the approved theme catalogue used when preparing calls for papers.")}<form id="theme-form" class="inline-create"><div class="form-row"><label>Theme name</label><input name="name" required></div><button class="button" type="submit">Add theme</button></form>${renderThemesTable()}</section>`;
+}
+
+function renderAdminTemplatesPage() {
+  return `<section class="grid two"><div class="panel">${pageHeader("Templates", "Upload template or guideline", "Version-controlled reviewer resources are available to authenticated reviewers.")}<form id="template-form" class="form-grid"><div class="form-row"><label>Name</label><input name="name" required></div><div class="form-row"><label>Type</label><select name="template_type"><option value="review_comments">Reviewer comments template</option><option value="review_guidelines">Reviewer guidelines</option><option value="notification">Notification notice</option></select></div><div class="form-row"><label>Subject (for notices)</label><input name="subject"></div><div class="form-row"><label>Body / instructions</label><textarea name="body"></textarea></div><div class="form-row"><label>Attachment (optional)</label><input name="file" type="file" accept=".pdf,.doc,.docx"></div><button class="button" type="submit">Save template</button></form></div><div class="panel">${pageHeader("Resources", "Current templates & notices")}${renderTemplatesList()}</div></section>`;
+}
+
+function renderAuditPage() {
+  return `<section class="panel">${pageHeader("Oversight", "Audit log", "Tamper-resistant record of authentication and administrative actions.", `<button class="button secondary" data-export="audit" type="button">Export CSV</button>`)}${renderAuditTable()}</section>`;
+}
+
+function renderPublicationsPage() {
+  return `<section class="panel">${pageHeader("Working Paper Series", "Published research", "Approved Bank of Uganda working papers available from the publication workflow.")}<div class="publication-grid">${state.publications.length ? state.publications.map((item) => `<article class="publication-card"><span class="badge">${escapeHtml(item.publication_reference || `BOU-WP-${item.id}`)}</span><h3>${escapeHtml(item.title)}</h3><p class="muted">${escapeHtml(item.author)} · ${escapeHtml(item.theme_name)} · ${escapeHtml(item.fiscal_year)}</p><div class="item-actions">${item.paper ? `<a class="button secondary" href="${API.submission}${item.paper}" target="_blank" rel="noopener">Download paper</a>` : `<span class="muted">Paper file pending</span>`}</div></article>`).join("") : `<div class="empty">No papers have been published yet.</div>`}</div></section>`;
+}
+
+function renderReportsPage() {
+  const byStatus = state.submissions.reduce((totals, item) => ({ ...totals, [item.status]: (totals[item.status] || 0) + 1 }), {});
+  return `<section class="grid three">${metricCard("Total submissions", state.submissions.length, "Across visible calls")}${metricCard("Published papers", state.publications.length, "Working Paper Series")}${metricCard("Pending reviews", state.assignments.filter((item) => item.status !== "verified").length, "Assignments requiring action")}</section><section class="grid two" style="margin-top:16px"><div class="panel">${pageHeader("Pipeline", "Submissions by status")}<div class="report-bars">${Object.entries(byStatus).map(([status, count]) => `<div><span>${humanize(status)}</span><strong>${count}</strong><i style="width:${Math.max(8, count / Math.max(1, state.submissions.length) * 100)}%"></i></div>`).join("") || `<div class="empty">No submissions to report.</div>`}</div></div><div class="panel">${pageHeader("Export", "Download report data")}<p class="muted">Export the currently visible submission register for analysis, or print this page to PDF using your browser.</p><div class="item-actions"><button class="button" data-export="submissions" type="button">Export CSV</button><button class="button secondary" id="print-report" type="button">Print / Save PDF</button></div></div></section>`;
 }
 
 function renderAuthorView() {
@@ -534,6 +682,7 @@ function renderReviewerView() {
         </div>
       </div>
       ${renderAssignmentList(mine, true)}
+      <div class="resource-strip"><strong>Reviewer resources</strong>${state.templates.filter((item) => ["review_comments", "review_guidelines"].includes(item.template_type)).map((item) => item.file_path ? `<a href="${API.masterdata}${item.file_path}" target="_blank" rel="noopener">${escapeHtml(item.name)} (v${item.version})</a>` : `<span>${escapeHtml(item.name)} (v${item.version})</span>`).join("") || `<span class="muted">No resources uploaded yet.</span>`}</div>
     </section>
   `;
 }
@@ -656,6 +805,7 @@ function renderSubmissionCard(item, authorMode = false) {
         <span class="badge">${escapeHtml(item.status)}</span>
       </div>
       ${renderTracking(item.tracking_steps || [])}
+      <div class="item-actions"><button class="button secondary" data-view-submission="${item.id}" type="button">View details</button></div>
       ${authorMode ? `
         <form class="item-actions upload-form" data-submission-id="${item.id}">
           <select name="doc_type">
@@ -695,12 +845,12 @@ function renderAssignmentCard(item, reviewerMode = false, editorialMode = false)
     <article class="card">
       <div class="item-head">
         <div>
-          <h3>Submission #${item.submission_id}</h3>
-          <p class="muted">${item.reviewer_type} reviewer ID ${item.reviewer_id}</p>
+          <h3>${escapeHtml(item.submission_title || `Submission #${item.submission_id}`)}</h3>
+          <p class="muted">${humanize(item.reviewer_type)} reviewer: ${escapeHtml(item.reviewer_name || `User #${item.reviewer_id}`)}</p>
         </div>
-        <span class="badge">${item.status}</span>
+        <span class="badge">${humanize(item.status)}</span>
       </div>
-      ${comments.map((comment) => `<p class="muted"><strong>${comment.recommendation}:</strong> ${escapeHtml(comment.comments)} (${comment.verification_status})</p>`).join("")}
+      ${comments.map((comment) => `<p class="muted"><strong>${humanize(comment.recommendation)}:</strong> ${escapeHtml(comment.comments)} (${humanize(comment.verification_status)})</p>`).join("")}
       ${editorialMode ? `
         <div class="item-actions">
           <button class="button gold" data-verify-assignment="${item.id}" data-approved="true" type="button">Approve assignment</button>
@@ -768,8 +918,9 @@ function renderOfficerQueues() {
 }
 
 function renderFinalDecisionList() {
-  if (!state.submissions.length) return `<div class="empty">No submissions ready for final decision.</div>`;
-  return `<div class="list">${state.submissions.map((item) => `
+  const eligible = state.submissions.filter((item) => ["editorial_board", "approved_for_publishing"].includes(item.current_stage) || ["editorial_board", "approved_for_publishing"].includes(item.status));
+  if (!eligible.length) return `<div class="empty">No submissions ready for final decision.</div>`;
+  return `<div class="list">${eligible.map((item) => `
     <article class="card">
       <div class="item-head">
         <div>
@@ -779,7 +930,7 @@ function renderFinalDecisionList() {
         <span class="badge">${escapeHtml(item.status)}</span>
       </div>
       <div class="item-actions">
-        <button class="button gold" data-final="${item.id}" data-decision="approved_for_publishing" type="button">Approve for publishing</button>
+        <button class="button gold" data-final="${item.id}" data-decision="published" type="button">Approve & publish</button>
         <button class="button danger" data-final="${item.id}" data-decision="declined" type="button">Decline</button>
       </div>
     </article>
@@ -833,10 +984,25 @@ function renderDepartmentsTable() {
   `;
 }
 
+function renderThemesTable() {
+  if (!state.themes.length) return `<div class="empty">No research themes configured.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Theme</th><th>Status</th><th>Actions</th></tr></thead><tbody>${state.themes.map((item) => `<tr><td>${escapeHtml(item.name)}</td><td><span class="badge ${item.is_active ? "success" : "danger-badge"}">${item.is_active ? "Active" : "Inactive"}</span></td><td class="item-actions"><button class="button secondary" data-edit-theme="${item.id}" type="button">Edit</button><button class="button ${item.is_active ? "danger" : "gold"}" data-toggle-theme="${item.id}" data-active="${item.is_active}" type="button">${item.is_active ? "Deactivate" : "Activate"}</button></td></tr>`).join("")}</tbody></table></div>`;
+}
+
+function renderTemplatesList() {
+  if (!state.templates.length) return `<div class="empty">No templates or notices configured.</div>`;
+  return `<div class="list">${state.templates.map((item) => `<article class="card"><div class="item-head"><div><h3>${escapeHtml(item.name)}</h3><p class="muted">${humanize(item.template_type)} · Version ${item.version}</p></div><span class="badge">v${item.version}</span></div>${item.subject ? `<strong>${escapeHtml(item.subject)}</strong>` : ""}${item.body ? `<p>${escapeHtml(item.body)}</p>` : ""}<div class="item-actions">${item.file_path ? `<a class="button secondary" href="${API.masterdata}${item.file_path}" target="_blank" rel="noopener">Download</a>` : ""}<button class="button danger" data-delete-template="${item.id}" type="button">Deactivate</button></div></article>`).join("")}</div>`;
+}
+
+function renderAuditTable() {
+  if (!state.auditLogs.length) return `<div class="empty">No audited activity yet.</div>`;
+  return `<div class="table-wrap"><table><thead><tr><th>Date</th><th>User</th><th>Action</th><th>Entity</th><th>Outcome</th><th>Details</th></tr></thead><tbody>${state.auditLogs.map((item) => `<tr><td>${formatDate(item.created_at)}</td><td>${escapeHtml(item.user || item.email)}</td><td>${escapeHtml(item.action)}</td><td>${escapeHtml([item.entity_type, item.entity_id].filter(Boolean).join(" #"))}</td><td><span class="badge ${item.outcome === "success" ? "success" : "danger-badge"}">${escapeHtml(item.outcome)}</span></td><td>${escapeHtml(item.details)}</td></tr>`).join("")}</tbody></table></div>`;
+}
+
 function reviewerOptions() {
   return state.users
     .filter((user) => user.roles.includes("InternalReviewer") || user.roles.includes("ExternalReviewer"))
-    .map((user) => `<option value="${user.id}">${escapeHtml(user.name)} - ${user.roles.join(", ")}</option>`)
+    .map((user) => `<option value="${user.id}" data-roles="${escapeAttribute(user.roles.join(","))}" data-email="${escapeAttribute(user.email)}">${escapeHtml(user.name)} — ${user.roles.map(humanize).join(", ")}</option>`)
     .join("");
 }
 
@@ -848,6 +1014,83 @@ function bindCurrentView() {
   bindAdminView();
   bindNotificationsView();
   bindStatusButtons();
+  bindStandaloneSubmissionActions();
+  bindEnhancements();
+}
+
+function bindStandaloneSubmissionActions() {
+  if (document.getElementById("submission-form")) return;
+  document.querySelectorAll(".upload-form").forEach((form) => {
+    form.addEventListener("submit", async (event) => {
+      event.preventDefault();
+      await request("submission", `/api/submissions/${form.dataset.submissionId}/documents`, { method: "POST", body: new FormData(form), headers: {} });
+      showToast("Document uploaded successfully.");
+      await hydrate();
+    });
+  });
+  document.querySelectorAll("[data-delete-submission]").forEach((button) => button.addEventListener("click", async () => {
+    if (!confirm("Delete this submission? This cannot be undone.")) return;
+    await request("submission", `/api/submissions/${button.dataset.deleteSubmission}`, { method: "DELETE" });
+    showToast("Submission deleted.");
+    await hydrate();
+  }));
+  document.querySelectorAll("[data-edit-submission]").forEach((button) => button.addEventListener("click", async () => {
+    const submission = state.submissions.find((item) => String(item.id) === button.dataset.editSubmission);
+    const title = prompt("Update submission title", submission?.title || "");
+    if (!title) return;
+    await request("submission", `/api/submissions/${button.dataset.editSubmission}`, { method: "PUT", body: JSON.stringify({ title }) });
+    showToast("Submission updated.");
+    await hydrate();
+  }));
+}
+
+function bindEnhancements() {
+  const dialog = document.getElementById("detail-dialog");
+  dialog?.querySelector(".dialog-close")?.addEventListener("click", () => dialog.close());
+  document.querySelectorAll("[data-view-submission]").forEach((button) => button.addEventListener("click", async () => {
+    try {
+      const item = await request("submission", `/api/submissions/${button.dataset.viewSubmission}`);
+      document.getElementById("dialog-content").innerHTML = `<span class="eyebrow">Submission #${item.id}</span><h2>${escapeHtml(item.title)}</h2><p><span class="badge">${humanize(item.status)}</span> <span class="badge">${escapeHtml(item.theme_name)}</span></p>${item.decision_reason ? `<div class="message show"><strong>Decision note</strong><br>${escapeHtml(item.decision_reason)}</div>` : ""}<h3>Authors</h3><div class="list">${(item.authors || []).map((author) => `<div class="detail-row"><strong>${escapeHtml(author.name)}${author.is_corresponding ? " (Corresponding)" : ""}</strong><span>${escapeHtml(author.email)} · ${author.is_bou_staff ? "BOU staff" : escapeHtml(author.institution)}</span></div>`).join("")}</div><h3>Documents</h3><div class="list">${(item.documents || []).map((document) => `<div class="detail-row"><span>${humanize(document.type)} · Version ${document.version_number} · ${formatDate(document.uploaded_at)}</span><a class="button secondary" href="${API.submission}${document.file_path}" target="_blank" rel="noopener">Download</a></div>`).join("") || `<div class="empty">No documents uploaded.</div>`}</div>${renderTracking(item.tracking_steps || [])}`;
+      dialog.showModal();
+    } catch (error) {
+      showToast(error.message);
+    }
+  }));
+  const themeForm = document.getElementById("theme-form");
+  if (themeForm) themeForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(themeForm);
+    await request("masterdata", "/api/themes", { method: "POST", body: JSON.stringify({ name: data.get("name") }) });
+    showToast("Research theme added.");
+    await hydrate();
+  });
+  document.querySelectorAll("[data-edit-theme]").forEach((button) => button.addEventListener("click", async () => {
+    const item = state.themes.find((theme) => String(theme.id) === button.dataset.editTheme);
+    const name = prompt("Research theme name", item?.name || "");
+    if (!name) return;
+    await request("masterdata", `/api/themes/${button.dataset.editTheme}`, { method: "PUT", body: JSON.stringify({ name }) });
+    await hydrate();
+  }));
+  document.querySelectorAll("[data-toggle-theme]").forEach((button) => button.addEventListener("click", async () => {
+    await request("masterdata", `/api/themes/${button.dataset.toggleTheme}`, { method: "PUT", body: JSON.stringify({ is_active: button.dataset.active !== "true" }) });
+    showToast("Theme status updated.");
+    await hydrate();
+  }));
+  const templateForm = document.getElementById("template-form");
+  if (templateForm) templateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    await request("masterdata", "/api/templates", { method: "POST", body: new FormData(templateForm), headers: {} });
+    showToast("Template saved.");
+    await hydrate();
+  });
+  document.querySelectorAll("[data-delete-template]").forEach((button) => button.addEventListener("click", async () => {
+    if (!confirm("Deactivate this template?")) return;
+    await request("masterdata", `/api/templates/${button.dataset.deleteTemplate}`, { method: "DELETE" });
+    showToast("Template deactivated.");
+    await hydrate();
+  }));
+  document.querySelectorAll("[data-export]").forEach((button) => button.addEventListener("click", () => exportCsv(button.dataset.export)));
+  document.getElementById("print-report")?.addEventListener("click", () => window.print());
 }
 
 function bindAuthorView() {
@@ -864,14 +1107,27 @@ function bindAuthorView() {
 
   function addAuthorRow(author = {}) {
     const row = document.createElement("div");
+    const isCorresponding = authorsBox.children.length === 0;
     row.className = "author-row";
     row.innerHTML = `
       <div class="form-row"><label>Name</label><input name="author_name" required value="${escapeAttribute(author.name || state.user.name || "")}"></div>
       <div class="form-row"><label>Email</label><input name="author_email" type="email" required value="${escapeAttribute(author.email || state.user.email || "")}"></div>
-      <div class="form-row"><label>BOU staff?</label><select name="is_bou_staff"><option value="true">Yes</option><option value="false">No</option></select></div>
-      <div class="form-row"><label>Department / Institution</label><input name="institution" placeholder="Department or institution"></div>
-      <button class="button secondary" type="button" data-remove-author>Remove</button>
+      <div class="form-row"><label>BOU staff?</label><select name="is_bou_staff"><option value="true">Yes</option><option value="false" ${author.name === "" ? "selected" : ""}>No</option></select></div>
+      <div class="form-row affiliation-field"><label>Department / Institution</label><select name="department_id"><option value="">Select department</option>${state.departments.map((item) => `<option value="${item.id}">${escapeHtml(item.name)}</option>`).join("")}</select><input name="institution" class="hidden" placeholder="External institution"></div>
+      <button class="button secondary" type="button" data-remove-author ${isCorresponding ? "disabled title=\"Corresponding author cannot be removed\"" : ""}>${isCorresponding ? "Primary" : "Remove"}</button>
     `;
+    const staffSelect = row.querySelector('[name="is_bou_staff"]');
+    const departmentSelect = row.querySelector('[name="department_id"]');
+    const institutionInput = row.querySelector('[name="institution"]');
+    const toggleAffiliation = () => {
+      const isStaff = staffSelect.value === "true";
+      departmentSelect.classList.toggle("hidden", !isStaff);
+      institutionInput.classList.toggle("hidden", isStaff);
+      departmentSelect.required = isStaff;
+      institutionInput.required = !isStaff;
+    };
+    staffSelect.addEventListener("change", toggleAffiliation);
+    toggleAffiliation();
     row.querySelector("[data-remove-author]").addEventListener("click", () => row.remove());
     authorsBox.appendChild(row);
   }
@@ -888,6 +1144,7 @@ function bindAuthorView() {
       name: row.querySelector('[name="author_name"]').value,
       email: row.querySelector('[name="author_email"]').value,
       is_bou_staff: row.querySelector('[name="is_bou_staff"]').value === "true",
+      department_id: Number(row.querySelector('[name="department_id"]').value) || null,
       institution: row.querySelector('[name="institution"]').value,
       is_corresponding: index === 0
     }));
@@ -948,7 +1205,8 @@ function bindOfficerView() {
     callForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(callForm);
-      const themes = (form.get("themes") || "").split("\n").map((item) => item.trim()).filter(Boolean);
+      const themes = [...new Set([...form.getAll("theme_choice"), ...(form.get("themes") || "").split("\n").map((item) => item.trim()).filter(Boolean)])];
+      if (!themes.length) return showToast("Select or enter at least one research theme.");
       await request("submission", "/api/calls", {
         method: "POST",
         body: JSON.stringify({
@@ -996,6 +1254,30 @@ function bindOfficerView() {
 
   const assignmentForm = document.getElementById("assignment-form");
   if (assignmentForm) {
+    const reviewerType = assignmentForm.querySelector('[name="reviewer_type"]');
+    const reviewerSelect = assignmentForm.querySelector('[name="reviewer_id"]');
+    const submissionSelect = assignmentForm.querySelector('[name="submission_id"]');
+    const coiResult = document.getElementById("coi-result");
+    const refreshReviewerChoices = () => {
+      const requiredRole = reviewerType.value === "internal" ? "InternalReviewer" : "ExternalReviewer";
+      [...reviewerSelect.options].forEach((option) => {
+        if (!option.value) return;
+        option.hidden = !(option.dataset.roles || "").split(",").includes(requiredRole);
+        if (option.selected && option.hidden) reviewerSelect.value = "";
+      });
+      const submission = state.submissions.find((item) => String(item.id) === submissionSelect.value);
+      const email = reviewerSelect.selectedOptions[0]?.dataset.email?.toLowerCase();
+      const conflict = email && submission && [submission.corresponding_author?.email, ...(submission.author_emails || [])].filter(Boolean).map((value) => value.toLowerCase()).includes(email);
+      if (coiResult) {
+        coiResult.textContent = conflict ? "Conflict of interest: this reviewer is listed as an author or co-author." : email && submission ? "No author-email conflict detected." : "";
+        coiResult.className = `message ${email && submission ? "show" : ""} ${conflict ? "error-message" : "success-message"}`;
+      }
+      assignmentForm.querySelector('button[type="submit"]').disabled = Boolean(conflict);
+    };
+    reviewerType.addEventListener("change", refreshReviewerChoices);
+    reviewerSelect.addEventListener("change", refreshReviewerChoices);
+    submissionSelect.addEventListener("change", refreshReviewerChoices);
+    refreshReviewerChoices();
     assignmentForm.addEventListener("submit", async (event) => {
       event.preventDefault();
       const form = new FormData(assignmentForm);
@@ -1042,12 +1324,18 @@ function bindEditorialView() {
 
   document.querySelectorAll("[data-final]").forEach((button) => {
     button.addEventListener("click", async () => {
-      const approved = button.dataset.decision === "approved_for_publishing";
+      const approved = button.dataset.decision === "published";
+      const reason = prompt(approved ? "Decision note (optional)" : "Reason for declining (required)", "");
+      if (!approved && !reason) return showToast("A decline reason is required.");
+      const publicationReference = approved ? prompt("Publication reference", `BOU-WP-${new Date().getFullYear()}-${String(button.dataset.final).padStart(3, "0")}`) : "";
+      if (approved && !publicationReference) return showToast("A publication reference is required.");
       await request("submission", `/api/submissions/${button.dataset.final}/status`, {
         method: "PUT",
         body: JSON.stringify({
           status: button.dataset.decision,
-          current_stage: "published",
+          current_stage: approved ? "published" : "editorial_board",
+          reason,
+          publication_reference: publicationReference,
           title: approved ? "Submission approved" : "Submission declined",
           message: approved ? "Your paper has been approved for publishing." : "Your paper has been declined after final review."
         })
@@ -1214,6 +1502,23 @@ function bindStatusButtons() {
 function formatDate(value) {
   if (!value) return "";
   return new Date(value).toLocaleString();
+}
+
+function humanize(value) {
+  return String(value || "").replaceAll("_", " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
+}
+
+function exportCsv(kind) {
+  const source = kind === "audit" ? state.auditLogs : state.submissions;
+  const rows = kind === "audit"
+    ? [["Date", "User", "Email", "Action", "Entity Type", "Entity ID", "Outcome", "Details"], ...source.map((item) => [item.created_at, item.user, item.email, item.action, item.entity_type, item.entity_id, item.outcome, item.details])]
+    : [["ID", "Title", "Theme", "Fiscal Year", "Status", "Stage", "Created"], ...source.map((item) => [item.id, item.title, item.theme_name, item.call?.fiscal_year, item.status, item.current_stage, item.created_at])];
+  const csv = rows.map((row) => row.map((cell) => `"${String(cell ?? "").replaceAll('"', '""')}"`).join(",")).join("\n");
+  const link = document.createElement("a");
+  link.href = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+  link.download = `bou-pms-${kind}-${new Date().toISOString().slice(0, 10)}.csv`;
+  link.click();
+  URL.revokeObjectURL(link.href);
 }
 
 function escapeHtml(value) {

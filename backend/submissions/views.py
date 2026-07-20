@@ -1,10 +1,14 @@
 from django.core.files.storage import default_storage
+from django.core.validators import validate_email
+from django.core.exceptions import ValidationError
+from django.db.models import Max
 from django.http import JsonResponse
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
 
 from bou_pms.api import json_error, parse_json, token_required
+from accounts.models import record_audit
 from notifications.models import create_notification
 from submissions.models import Call, DocumentVersion, Submission, SubmissionAuthor, Theme
 
@@ -62,6 +66,14 @@ def serialize_submission(submission, include_details=False):
         "theme_id": submission.theme_id,
         "theme_name": submission.theme.name,
         "corresponding_author_id": submission.corresponding_author_id,
+        "corresponding_author": {
+            "name": submission.corresponding_author.get_full_name() or submission.corresponding_author.email,
+            "email": submission.corresponding_author.email,
+        },
+        "author_emails": list(submission.authors.values_list("email", flat=True)),
+        "decision_reason": submission.decision_reason,
+        "publication_reference": submission.publication_reference,
+        "publication_date": submission.publication_date.isoformat() if submission.publication_date else None,
         "created_at": submission.created_at.isoformat(),
         "tracking_steps": tracking_steps(submission),
         "call": {
@@ -122,6 +134,8 @@ def calls(request):
             abstract_deadline = timezone.make_aware(abstract_deadline)
         if timezone.is_naive(paper_deadline):
             paper_deadline = timezone.make_aware(paper_deadline)
+        if paper_deadline <= abstract_deadline:
+            return json_error("Paper deadline must be after the abstract deadline", 400)
 
         call = Call.objects.create(
             fiscal_year=data["fiscal_year"],
@@ -131,6 +145,7 @@ def calls(request):
         )
         for theme_name in data.get("themes", []):
             Theme.objects.create(call=call, name=theme_name)
+        record_audit(request.user, "Created call for papers", "call", call.id, details=call.fiscal_year)
         return JsonResponse({"message": "Call created", "call_id": call.id}, status=201)
 
     return json_error("Method not allowed", 405)
@@ -147,6 +162,7 @@ def publish_call(request, call_id):
         return json_error("Call not found", 404)
     call.status = "published"
     call.save()
+    record_audit(request.user, "Published call for papers", "call", call.id, details=call.fiscal_year)
     return JsonResponse({"message": "Call published"})
 
 
@@ -196,6 +212,19 @@ def submissions(request):
             return json_error("Invalid JSON", 400)
         if not all(field in data for field in ["call_id", "theme_id", "title", "authors"]):
             return json_error("Missing required fields", 400)
+        if not str(data["title"]).strip() or not isinstance(data["authors"], list) or not data["authors"]:
+            return json_error("A title and at least one author are required", 400)
+        for author_data in data["authors"]:
+            if not author_data.get("name") or not author_data.get("email"):
+                return json_error("Every author requires a name and email", 400)
+            try:
+                validate_email(author_data["email"])
+            except ValidationError:
+                return json_error(f'Invalid author email: {author_data["email"]}', 400)
+            if author_data.get("is_bou_staff") and not author_data.get("department_id"):
+                return json_error("BOU staff authors require a department", 400)
+            if not author_data.get("is_bou_staff") and not author_data.get("institution"):
+                return json_error("External authors require an institution", 400)
         try:
             call = Call.objects.get(id=data["call_id"], status="published")
             theme = Theme.objects.get(id=data["theme_id"], call=call)
@@ -225,6 +254,7 @@ def submissions(request):
             "submission",
             submission.id,
         )
+        record_audit(request.user, "Created submission", "submission", submission.id, details=submission.title)
         return JsonResponse({"message": "Submission created", "submission_id": submission.id}, status=201)
 
     return json_error("Method not allowed", 405)
@@ -300,11 +330,28 @@ def submission_status(request, submission_id):
     data = parse_json(request)
     if data is None:
         return json_error("Invalid JSON", 400)
+    allowed_statuses = {
+        "submitted", "assigned_internal_reviewer", "internal_review", "author_revision",
+        "revised_submission", "external_review", "editorial_board",
+        "approved_for_publishing", "published", "declined",
+    }
+    if data.get("status") and data["status"] not in allowed_statuses:
+        return json_error("Invalid submission status", 400)
+    final_statuses = {"approved_for_publishing", "published", "declined"}
+    if data.get("status") in final_statuses and "EditorialBoard" not in request.user_roles:
+        return json_error("Only the Editorial Board can record a final decision", 403)
     if data.get("status"):
         submission.status = data["status"]
     if data.get("current_stage"):
         submission.current_stage = data["current_stage"]
+    if "reason" in data:
+        submission.decision_reason = data["reason"]
+    if data.get("publication_reference"):
+        submission.publication_reference = data["publication_reference"].strip()
+    if data.get("status") == "published":
+        submission.publication_date = timezone.localdate()
     submission.save()
+    record_audit(request.user, "Updated submission status", "submission", submission.id, details=submission.status)
     if data.get("notify_author", True):
         create_notification(
             submission.corresponding_author_id,
@@ -314,6 +361,25 @@ def submission_status(request, submission_id):
             submission.id,
         )
     return JsonResponse({"message": "Submission status updated", "submission": serialize_submission(submission, True)})
+
+
+def publications(request):
+    if request.method != "GET":
+        return json_error("Method not allowed", 405)
+    query = Submission.objects.select_related("call", "theme", "corresponding_author").filter(status="published").order_by("-publication_date", "-id")
+    return JsonResponse([
+        {
+            "id": item.id,
+            "title": item.title,
+            "theme_name": item.theme.name,
+            "fiscal_year": item.call.fiscal_year,
+            "author": item.corresponding_author.get_full_name() or item.corresponding_author.email,
+            "publication_reference": item.publication_reference,
+            "publication_date": item.publication_date.isoformat() if item.publication_date else None,
+            "paper": next((doc.file.url for doc in item.documents.filter(doc_type__in=["paper", "revision"]).order_by("-version_number", "-id") if doc.file), ""),
+        }
+        for item in query
+    ], safe=False)
 
 
 @csrf_exempt
@@ -344,7 +410,9 @@ def submission_documents(request, submission_id):
         doc_type=doc_type,
         file=path,
         uploaded_by=request.user,
+        version_number=(submission.documents.filter(doc_type=doc_type).aggregate(Max("version_number"))["version_number__max"] or 0) + 1,
     )
+    record_audit(request.user, "Uploaded submission document", "submission", submission.id, details=f"{doc_type} v{document.version_number}")
     create_notification(
         request.user.id,
         "Document uploaded",

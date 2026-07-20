@@ -1,18 +1,22 @@
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+from functools import partial
 from pathlib import Path
 
 
-ROOT = Path(__file__).resolve().parent
+FRONTEND_ROOT = Path(__file__).resolve().parent / "frontend"
 
 
 class PMSHandler(SimpleHTTPRequestHandler):
-    def translate_path(self, path):
-        if path.split("?", 1)[0] in ("", "/", "/index.html"):
-            return str(ROOT / "BOU_PMS_Mockup.html")
-        return super().translate_path(path)
+    def end_headers(self):
+        # Prevent an old demo entry page or application bundle from surviving a restart.
+        self.send_header("Cache-Control", "no-store, no-cache, must-revalidate")
+        self.send_header("Pragma", "no-cache")
+        self.send_header("Expires", "0")
+        super().end_headers()
 
 
 if __name__ == "__main__":
-    server = ThreadingHTTPServer(("127.0.0.1", 3000), PMSHandler)
+    handler = partial(PMSHandler, directory=str(FRONTEND_ROOT))
+    server = ThreadingHTTPServer(("127.0.0.1", 3000), handler)
     print("BOU Publication Management System: http://127.0.0.1:3000")
     server.serve_forever()

@@ -30,6 +30,9 @@ class Submission(models.Model):
     corresponding_author = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT)
     status = models.CharField(max_length=40, default="submitted")
     current_stage = models.CharField(max_length=60, default="submitted")
+    decision_reason = models.TextField(blank=True)
+    publication_reference = models.CharField(max_length=80, blank=True)
+    publication_date = models.DateField(null=True, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
 
     def __str__(self):
