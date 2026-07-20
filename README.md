@@ -5,13 +5,25 @@
 Run this once to create/install each service environment:
 
 ```bash
+# macOS / Linux
 python3 setup_local.py
+```
+
+```powershell
+# Windows
+python setup_local.py
 ```
 
 Start the Django backend and the frontend:
 
 ```bash
+# macOS / Linux
 python3 run_all.py
+```
+
+```powershell
+# Windows
+python run_all.py
 ```
 
 Service ports:

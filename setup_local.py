@@ -24,7 +24,11 @@ def main():
         if not venv_dir.exists():
             run([sys.executable, "-m", "venv", "venv"], service_dir)
 
-        python_bin = venv_dir / "bin" / "python"
+        if sys.platform == "win32":
+            python_bin = venv_dir / "Scripts" / "python.exe"
+        else:
+            python_bin = venv_dir / "bin" / "python"
+
         run([str(python_bin), "-m", "pip", "install", "-r", "requirements.txt"], service_dir)
         if service == "backend":
             run([str(python_bin), "manage.py", "migrate"], service_dir)

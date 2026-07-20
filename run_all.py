@@ -7,11 +7,13 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
+BACKEND_PYTHON = ROOT / "backend" / "venv" / ("Scripts" if sys.platform == "win32" else "bin") / ("python.exe" if sys.platform == "win32" else "python")
+
 SERVICES = [
     {
         "name": "django-backend",
         "cwd": ROOT / "backend",
-        "cmd": ["venv/bin/python", "manage.py", "runserver", "127.0.0.1:8000"],
+        "cmd": [str(BACKEND_PYTHON), "manage.py", "runserver", "127.0.0.1:8000"],
         "url": "http://127.0.0.1:8000/health",
     },
     {
