@@ -205,6 +205,15 @@
   .center-note{text-align:center;color:var(--muted);font-size:13px;padding:40px 0;}
   .flag-box{background:var(--danger-bg);border:1px solid var(--danger);color:var(--danger);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:12px;}
   .ok-box{background:var(--success-bg);border:1px solid var(--success);color:var(--success);padding:10px 12px;border-radius:8px;font-size:12.5px;margin-bottom:12px;}
+
+  /* Floating action button */
+  .fab-btn{
+    position:fixed; right:28px; bottom:28px; z-index:20;
+    border:none; border-radius:999px; padding:12px 20px; font-size:14px; font-weight:700;
+    background:var(--maroon); color:#fff; box-shadow:0 10px 24px rgba(0,0,0,.2);
+    display:inline-flex; align-items:center; gap:8px;
+  }
+  .fab-btn:hover{background:var(--maroon-dark);}
 </style>
 </head>
 <body>
@@ -224,6 +233,7 @@
 /* =========================================================================
    BOU PUBLICATION MANAGEMENT SYSTEM — CLICKABLE PROTOTYPE
    Updated to support multiple roles per user (FR‑1.4) and role editing.
+   Manage Calls: full‑page table with floating create button.
    ========================================================================= */
 
 /* ---------------------------- ICONS (inline) ---------------------------- */
@@ -278,7 +288,7 @@ const DB = {
       corresponding:{name:'Lucy Namataaka Flavia', email:'lnamataaka@bou.or.ug'},
       coAuthors:[],
       stage:2, status:'Awaiting internal reviewer comments', pubRef:null, pubDate:null,
-      docs:[{type:'Abstract', v1:1},{type:'Working Paper', v:1}],
+      docs:[{type:'Abstract', v:1},{type:'Working Paper', v:1}],
       history:['Submitted 10 Jul 2026','Internal reviewer assigned 13 Jul 2026']},
 
     {id:104, callId:1, theme:'Macroeconomic Policy', title:'Climate Shocks and Agricultural Credit Supply',
@@ -524,6 +534,7 @@ const PAGE_TITLES = {
   'admin-public': ['PUBLIC SITE PREVIEW','Public Repository'],
   'admin-audit': ['OVERSIGHT','Audit Log'],
   'ro-calls': ['MANAGE CALLS','Manage Calls'],
+  'ro-calls-create': ['MANAGE CALLS','Create Call for Papers'],
   'ro-assign': ['REVIEWER ASSIGNMENT','Assign Internal / External Reviewers'],
   'ro-verify': ['VERIFICATION QUEUE','Verify Comments & Revisions'],
   'ro-reports': ['INSIGHTS','Reports'],
@@ -564,6 +575,7 @@ function renderContent(){
     case 'admin-public': html = pagePublicRepo(true); break;
     case 'admin-audit': html = pageAuditLog(); break;
     case 'ro-calls': html = pageCalls(); break;
+    case 'ro-calls-create': html = pageCreateCall(); break;
     case 'ro-assign': html = pageAssign(); break;
     case 'ro-verify': html = pageRoVerify(); break;
     case 'ro-reports': html = pageReports('ResearchOfficer'); break;
@@ -582,9 +594,6 @@ function renderContent(){
 
 /* ------------------------------ SHARED WIDGETS ------------------------------- */
 function stageBadge(sub){
-  const map = {
-    'Published':'badge-published'
-  };
   if(sub.status.toLowerCase().includes('revision')) return `<span class="badge badge-revision">${sub.status}</span>`;
   if(sub.status==='Published') return `<span class="badge badge-published">Published</span>`;
   if(sub.status.toLowerCase().includes('awaiting')) return `<span class="badge badge-pending">${sub.status}</span>`;
@@ -856,7 +865,7 @@ function toggleUserStatus(id){
   go('admin-users');
 }
 
-function pageAdminDepartments(){ /* same as before */ 
+function pageAdminDepartments(){
   return `
   <div class="grid grid-2">
     <div class="card">
@@ -933,7 +942,7 @@ function confirmDeleteDept(id){
   go('admin-departments');
 }
 
-function pageAdminThemes(){ /* same */ 
+function pageAdminThemes(){
   const rows = [];
   DB.calls.forEach(c=> c.themes.forEach(t=> rows.push({theme:t, call:c})));
   return `
@@ -954,7 +963,7 @@ function pageAdminThemes(){ /* same */
   </div>`;
 }
 
-function pageAdminTemplates(){ /* same */ 
+function pageAdminTemplates(){
   const t = DB.templates;
   return `
   <div class="grid grid-2">
@@ -1006,7 +1015,7 @@ function saveNotifTemplate(key){
   go('admin-templates');
 }
 
-function pageAuditLog(){ /* same */ 
+function pageAuditLog(){
   return `
   <div class="card">
     <div class="eyebrow">Oversight</div>
@@ -1046,55 +1055,72 @@ function pagePublicRepo(insideApp){
 }
 
 /* =========================================================================
-   RESEARCH OFFICER PAGES (unchanged, except we keep themes)
+   RESEARCH OFFICER – MANAGE CALLS (UPDATED)
    ========================================================================= */
 function pageCalls(){
   return `
-  <div class="grid grid-2">
-    <div class="card">
-      <div class="eyebrow">Calls</div>
-      <h2>Manage Calls</h2>
-      <div class="sub">View existing calls or create a new one.</div>
-      <button class="btn btn-primary" onclick="toggleCallForm()" style="width:100%;justify-content:center;margin-bottom:16px;">
-        + Create Call for Papers
-      </button>
-      <div id="callFormContainer" style="display:none; border-top:1px solid var(--border); padding-top:16px; margin-top:8px;">
-        <div class="row-2">
-          <div class="field"><label>Fiscal year</label><input id="callFy" type="text" placeholder="2027/2028"></div>
-          <div class="field"><label>Abstract deadline</label><input id="callAbsDl" type="date"></div>
-        </div>
-        <div class="field"><label>Paper deadline</label><input id="callPaperDl" type="date"></div>
-        <div class="field"><label>Description</label><textarea id="callDesc" placeholder="Describe the call"></textarea></div>
-        <div class="field"><label>Themes, one per line</label><textarea id="callThemes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea></div>
-        <button class="btn btn-primary" onclick="createCall()">Create draft call</button>
-        <button class="btn btn-outline" style="margin-top:8px;width:auto;" onclick="toggleCallForm()">Cancel</button>
+  <div class="card" style="width:100%;">
+    <div class="eyebrow">Calls</div>
+    <h2>Existing calls</h2>
+    <div class="sub">View existing calls created in the system.</div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>FY</th><th>Themes</th><th>Abstract deadline</th><th>Paper deadline</th><th>Status</th><th></th></tr></thead>
+        <tbody>${DB.calls.map(c=>`<tr>
+          <td>${c.fy}</td><td>${c.themes.join(', ')}</td><td>${c.abstractDeadline}</td><td>${c.paperDeadline}</td>
+          <td>${c.status==='Published'?'<span class="badge badge-open">Published</span>': c.status==='Draft'?'<span class="badge badge-draft">Draft</span>':'<span class="badge badge-closed">Closed</span>'}</td>
+          <td class="row-actions">
+            ${c.status==='Draft'?`<button class="btn btn-outline btn-sm" onclick="publishCall(${c.id})">Publish</button>`:''}
+            ${c.status==='Published'?`<button class="btn btn-outline btn-sm" onclick="editCallDeadline(${c.id})">Edit deadline</button><button class="btn btn-danger-outline btn-sm" onclick="closeCall(${c.id})">Close</button>`:''}
+          </td>
+        </tr>`).join('') || `<tr><td colspan="6">No calls have been created.</td></tr>`}</tbody>
+      </table>
+    </div>
+  </div>
+
+  <button class="fab-btn" onclick="go('ro-calls-create')">+ Create Call for Papers</button>`;
+}
+
+function pageCreateCall(){
+  return `
+  <div class="card" style="max-width:760px;margin:0 auto;">
+    <div class="eyebrow">Calls</div>
+    <h2>Create Call for Papers</h2>
+    <div class="sub">Fill in the details below to create a new call.</div>
+
+    <div class="row-2">
+      <div class="field">
+        <label>Fiscal year</label>
+        <input id="callFy" type="text" placeholder="2027/2028">
+      </div>
+      <div class="field">
+        <label>Abstract deadline</label>
+        <input id="callAbsDl" type="date">
       </div>
     </div>
-    <div class="card">
-      <div class="eyebrow">Calls</div>
-      <h2>Existing calls</h2>
-      <div class="table-wrap">
-        <table>
-          <thead><tr><th>FY</th><th>Themes</th><th>Abstract deadline</th><th>Paper deadline</th><th>Status</th><th></th></tr></thead>
-          <tbody>${DB.calls.map(c=>`<tr>
-            <td>${c.fy}</td><td>${c.themes.join(', ')}</td><td>${c.abstractDeadline}</td><td>${c.paperDeadline}</td>
-            <td>${c.status==='Published'?'<span class="badge badge-open">Published</span>': c.status==='Draft'?'<span class="badge badge-draft">Draft</span>':'<span class="badge badge-closed">Closed</span>'}</td>
-            <td class="row-actions">
-              ${c.status==='Draft'?`<button class="btn btn-outline btn-sm" onclick="publishCall(${c.id})">Publish</button>`:''}
-              ${c.status==='Published'?`<button class="btn btn-outline btn-sm" onclick="editCallDeadline(${c.id})">Edit deadline</button><button class="btn btn-danger-outline btn-sm" onclick="closeCall(${c.id})">Close</button>`:''}
-            </td>
-          </tr>`).join('') || `<tr><td colspan="6">No calls have been created.</td></tr>`}</tbody>
-        </table>
-      </div>
+
+    <div class="field">
+      <label>Paper deadline</label>
+      <input id="callPaperDl" type="date">
+    </div>
+
+    <div class="field">
+      <label>Description</label>
+      <textarea id="callDesc" placeholder="Describe the call"></textarea>
+    </div>
+
+    <div class="field">
+      <label>Themes, one per line</label>
+      <textarea id="callThemes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea>
+    </div>
+
+    <div class="btn-row">
+      <button class="btn btn-outline" onclick="go('ro-calls')">Back to calls</button>
+      <button class="btn btn-primary" style="width:auto" onclick="createCall()">Create draft call</button>
     </div>
   </div>`;
 }
-function toggleCallForm(){
-  const container = document.getElementById('callFormContainer');
-  if(container){
-    container.style.display = container.style.display === 'none' ? 'block' : 'none';
-  }
-}
+
 function createCall(){
   const fy = document.getElementById('callFy').value.trim();
   const absDl = document.getElementById('callAbsDl').value;
@@ -1106,6 +1132,7 @@ function createCall(){
   toast('Draft call created. Publish it to make it visible to authors.','success');
   go('ro-calls');
 }
+
 function publishCall(id){
   const c = DB.calls.find(x=>x.id===id); c.status='Published';
   DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Published Call for Papers FY${c.fy}`, date:'15 Jul 2026', outcome:'Success'});
@@ -1131,7 +1158,12 @@ function saveCallDeadline(id){
   closeModal(); toast('Deadline updated.','success'); go('ro-calls');
 }
 
-function pageAssign(){ /* same */ 
+/* (old toggleCallForm removed — no longer needed) */
+
+/* =========================================================================
+   REVIEWER ASSIGNMENT & VERIFICATION (unchanged)
+   ========================================================================= */
+function pageAssign(){
   const open = DB.submissions.filter(s=> !['Published'].includes(s.status));
   const internalReviewers = usersByRole('InternalReviewer');
   const externalReviewers = usersByRole('ExternalReviewer');
@@ -1222,7 +1254,7 @@ function assignReviewer(){
   go('ro-assign');
 }
 
-function pageRoVerify(){ /* same */ 
+function pageRoVerify(){
   const pendingComments = DB.comments.filter(c=>!c.verified);
   return `
   <div class="grid grid-2">
@@ -1305,7 +1337,7 @@ function verifyRevision(subId, approve){
   go('ro-verify');
 }
 
-function pageReports(role){ /* same */ 
+function pageReports(role){
   const byStatus = {};
   DB.submissions.forEach(s=>{ byStatus[s.status] = (byStatus[s.status]||0)+1; });
   const workload = {};
@@ -1344,7 +1376,7 @@ function pageReports(role){ /* same */
 }
 
 /* =========================================================================
-   EDITORIAL BOARD PAGES (unchanged)
+   EDITORIAL BOARD PAGES
    ========================================================================= */
 function renderEbQueueTable(items){
   if(!items.length) return emptyBox('No assignments found.');
@@ -1352,7 +1384,7 @@ function renderEbQueueTable(items){
     ${items.map(e=>`<tr><td>${e.kind}</td><td>${subById(e.submissionId).title}</td><td><span class="badge badge-pending">${e.status}</span></td></tr>`).join('')}
   </tbody></table></div>`;
 }
-function pageEbVerify(){ /* same */ 
+function pageEbVerify(){
   const pending = DB.ebQueue.filter(e=>e.status==='Pending');
   const officerApprovals = DB.submissions.filter(s=>s.status==='Awaiting Editorial Board final verification');
   return `
@@ -1421,7 +1453,7 @@ function ebVerifyOfficerApproval(subId, approve){
   }
   go('eb-verify');
 }
-function pageEbPublish(){ /* same */ 
+function pageEbPublish(){
   const ready = DB.submissions.filter(s=>s.status==='Ready for final Editorial Board approval');
   return `
   <div class="card">
@@ -1461,7 +1493,7 @@ function rejectPublish(subId){
 }
 
 /* =========================================================================
-   REVIEWER PAGES (unchanged)
+   REVIEWER PAGES
    ========================================================================= */
 function renderAssignmentTable(list, withActions){
   return `<div class="table-wrap"><table><thead><tr><th>Paper</th><th>Type</th><th>Status</th>${withActions?'<th></th>':''}</tr></thead><tbody>
@@ -1471,7 +1503,7 @@ function renderAssignmentTable(list, withActions){
     </tr>`).join('')}
   </tbody></table></div>`;
 }
-function pageReviewerAssignments(role){ /* same */ 
+function pageReviewerAssignments(role){
   const mine = DB.assignments.filter(a=>a.reviewerId===state.userId);
   return `
   <div class="card">
@@ -1518,7 +1550,7 @@ function submitReview(aid){
 }
 
 /* =========================================================================
-   AUTHOR PAGES (unchanged)
+   AUTHOR PAGES
    ========================================================================= */
 let coauthorCount = 0;
 function pageAuthorSubmit(){
