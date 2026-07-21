@@ -527,7 +527,7 @@ function renderEditorialPublishingPage() {
 }
 
 function userFormMarkup() {
-  return `<form id="user-form" class="form-grid"><div class="form-row"><label>Full name</label><input name="name" required placeholder="e.g. Brenda Auma"></div><div class="form-row"><label>Email address</label><input name="email" type="email" required placeholder="e.g. bauma@bou.or.ug"></div><div class="form-row"><label>Temporary password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="At least 12 characters"></div><div class="form-row"><label>Roles (select one or more)</label><div class="role-checkbox-grid">${roles.map((role) => `<label><input name="roles" type="checkbox" value="${role}" ${role === "Author" ? "checked" : ""}> ${humanize(role)}</label>`).join("")}</div></div><button class="button" type="submit">Create account</button></form>`;
+  return `<form id="user-form" class="form-grid"><div class="form-row"><label>Full name</label><input name="name" required placeholder="e.g. Brenda Auma"></div><div class="form-row"><label>Email address</label><input name="email" type="email" required placeholder="e.g. bauma@bou.or.ug"></div><div class="form-row"><label>Temporary password</label><input name="password" type="password" minlength="12" autocomplete="new-password" required placeholder="At least 12 characters"></div><div class="form-row"><label>Roles (select one or more)</label><div class="role-checkbox-grid">${roles.map((role) => `<label><input name="roles" type="checkbox" value="${role}" ${role === "Author" ? "checked" : ""}> ${humanize(role)}</label>`).join("")}</div></div><div id="user-form-message" class="message error-message" role="alert" aria-live="polite"></div><button class="button" type="submit">Create account</button></form>`;
 }
 
 function renderAdminUsersPage() {
@@ -1476,21 +1476,33 @@ function bindAdminView() {
   if (userForm) {
     userForm.addEventListener("submit", async (event) => {
       event.preventDefault();
+      const message = userForm.querySelector("#user-form-message");
+      const submitButton = userForm.querySelector('button[type="submit"]');
       const form = new FormData(userForm);
       const selectedRoles = [...userForm.querySelectorAll('[name="roles"]:checked')].map((input) => input.value);
-      await request("identity", "/api/users", {
-        method: "POST",
-        body: JSON.stringify({
-          name: form.get("name"),
-          email: form.get("email"),
-          password: form.get("password"),
-          roles: selectedRoles.length ? selectedRoles : ["Author"]
-        })
-      });
-      showToast("User account created.");
-      state.view = "admin-users";
-      localStorage.setItem("bou_view", state.view);
-      await hydrate();
+      message.textContent = "";
+      message.classList.remove("show");
+      submitButton.disabled = true;
+      try {
+        await request("identity", "/api/users", {
+          method: "POST",
+          body: JSON.stringify({
+            name: form.get("name"),
+            email: form.get("email"),
+            password: form.get("password"),
+            roles: selectedRoles.length ? selectedRoles : ["Author"]
+          })
+        });
+        showToast("User account created.");
+        state.view = "admin-users";
+        localStorage.setItem("bou_view", state.view);
+        await hydrate();
+      } catch (error) {
+        message.textContent = error.message;
+        message.classList.add("show");
+      } finally {
+        submitButton.disabled = false;
+      }
     });
   }
 
