@@ -12,15 +12,37 @@ from uuid import uuid4
 from django.utils import timezone
 from django.utils.dateparse import parse_datetime
 from django.views.decorators.csrf import csrf_exempt
+from django.contrib.auth.models import User
 
 from bou_pms.api import get_user_from_request, json_error, parse_json, token_required, user_roles
 from accounts.models import record_audit
-from notifications.models import create_notification
+from notifications.models import Notification, create_notification
 from submissions.models import Call, DocumentVersion, Submission, SubmissionAuthor, Theme
 
 
 WORKFLOW_ROLES = {"Admin", "ResearchOfficer", "EditorialBoard"}
 REVIEWER_ROLES = {"InternalReviewer", "ExternalReviewer"}
+
+
+def notify_authors_of_call(call):
+    """Create one in-app alert per active Author whenever a call is published."""
+    title = "New Call for Papers"
+    message = (
+        f"A new Call for Papers for FY {call.fiscal_year} is now open. "
+        f"Abstract deadline: {call.abstract_deadline:%d %b %Y}."
+    )
+    created = 0
+    author_ids = User.objects.filter(is_active=True, groups__name="Author").values_list("id", flat=True).distinct()
+    for author_id in author_ids:
+        _notification, was_created = Notification.objects.get_or_create(
+            user_id=author_id,
+            title=title,
+            message=message,
+            notification_type="call",
+            defaults={"is_read": False},
+        )
+        created += int(was_created)
+    return created
 
 
 def can_access_submission(user, roles, submission):
@@ -162,11 +184,13 @@ def calls(request):
             description=data["description"],
             abstract_deadline=abstract_deadline,
             paper_deadline=paper_deadline,
+            status="published",
         )
         for theme_name in data.get("themes", []):
             Theme.objects.create(call=call, name=theme_name)
         record_audit(request.user, "Created call for papers", "call", call.id, details=call.fiscal_year)
-        return JsonResponse({"message": "Call created", "call_id": call.id}, status=201)
+        notify_authors_of_call(call)
+        return JsonResponse({"message": "Call published and authors notified", "call_id": call.id}, status=201)
 
     return json_error("Method not allowed", 405)
 
@@ -182,8 +206,9 @@ def publish_call(request, call_id):
         return json_error("Call not found", 404)
     call.status = "published"
     call.save()
+    notified_authors = notify_authors_of_call(call)
     record_audit(request.user, "Published call for papers", "call", call.id, details=call.fiscal_year)
-    return JsonResponse({"message": "Call published"})
+    return JsonResponse({"message": "Call published", "authors_notified": notified_authors})
 
 
 @csrf_exempt
@@ -206,11 +231,14 @@ def call_detail(request, call_id):
             if timezone.is_naive(value):
                 value = timezone.make_aware(value)
             setattr(call, field, value)
+    was_published = call.status == "published"
     if data.get("status"):
         if data["status"] not in ["draft", "published", "closed"]:
             return json_error("Invalid call status", 400)
         call.status = data["status"]
     call.save()
+    if call.status == "published" and not was_published:
+        notify_authors_of_call(call)
     return JsonResponse({"message": "Call updated", "call": serialize_call(call)})
 
 

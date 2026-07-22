@@ -1132,7 +1132,7 @@ function pageCreateCall(){
 
     <div class="btn-row">
       <button class="btn btn-outline" onclick="go('ro-calls')">Back to calls</button>
-      <button class="btn btn-primary" style="width:auto" onclick="createCall()">Create draft call</button>
+      <button class="btn btn-primary" style="width:auto" onclick="createCall()">Create &amp; publish call</button>
     </div>
   </div>`;
 }
@@ -1144,8 +1144,11 @@ function createCall(){
   const desc = document.getElementById('callDesc').value.trim();
   const themes = document.getElementById('callThemes').value.split('\n').map(t=>t.trim()).filter(Boolean);
   if(!fy || !absDl || !paperDl || themes.length===0){ toast('Fill in fiscal year, both deadlines, and at least one theme.','warn'); return; }
-  DB.calls.push({id:ID.call++, fy, description:desc, themes, abstractDeadline:absDl, paperDeadline:paperDl, status:'Draft'});
-  toast('Draft call created. Publish it to make it visible to authors.','success');
+  const callId = ID.call++;
+  DB.calls.push({id:callId, fy, description:desc, themes, abstractDeadline:absDl, paperDeadline:paperDl, status:'Published'});
+  notify(usersByRole('Author').filter(u=>u.status==='Active').map(u=>u.id), `A new Call for Papers for FY ${fy} is now open. Abstract deadline: ${absDl}.`);
+  DB.auditLog.unshift({id:ID.audit++, user:currentUser().name, action:`Created and published Call for Papers FY${fy}`, date:new Date().toLocaleString(), outcome:'Success'});
+  toast('Call published and all active authors notified.','success');
   go('ro-calls');
 }
 

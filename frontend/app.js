@@ -488,7 +488,7 @@ function renderAuthorSubmissionsPage() {
 }
 
 function callFormMarkup() {
-  return `<form id="call-form" class="form-grid"><div class="inline-fields"><div class="form-row"><label>Fiscal year</label><input name="fiscal_year" required placeholder="2026/2027"></div><div class="form-row"><label>Abstract deadline</label><input name="abstract_deadline" type="datetime-local" required></div><div class="form-row"><label>Paper deadline</label><input name="paper_deadline" type="datetime-local" required></div></div><div class="form-row"><label>Description</label><textarea name="description" required placeholder="Purpose and scope of this call"></textarea></div><div class="form-row"><label>Approved research themes</label><div class="theme-picker">${state.themes.filter((item) => item.is_active).map((item) => `<label><input type="checkbox" name="theme_choice" value="${escapeAttribute(item.name)}"> ${escapeHtml(item.name)}</label>`).join("") || `<span class="muted">No master themes configured; enter themes below.</span>`}</div></div><div class="form-row"><label>Additional themes (one per line)</label><textarea name="themes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea></div><button class="button" type="submit">Create draft call</button></form>`;
+  return `<form id="call-form" class="form-grid"><div class="inline-fields"><div class="form-row"><label>Fiscal year</label><input name="fiscal_year" required placeholder="2026/2027"></div><div class="form-row"><label>Abstract deadline</label><input name="abstract_deadline" type="datetime-local" required></div><div class="form-row"><label>Paper deadline</label><input name="paper_deadline" type="datetime-local" required></div></div><div class="form-row"><label>Description</label><textarea name="description" required placeholder="Purpose and scope of this call"></textarea></div><div class="form-row"><label>Approved research themes</label><div class="theme-picker">${state.themes.filter((item) => item.is_active).map((item) => `<label><input type="checkbox" name="theme_choice" value="${escapeAttribute(item.name)}"> ${escapeHtml(item.name)}</label>`).join("") || `<span class="muted">No master themes configured; enter themes below.</span>`}</div></div><div class="form-row"><label>Additional themes (one per line)</label><textarea name="themes" placeholder="Macroeconomic Policy&#10;Financial Stability"></textarea></div><button class="button" type="submit">Create &amp; publish call</button></form>`;
 }
 
 function renderOfficerCallsPage() {
@@ -1320,7 +1320,7 @@ function bindOfficerView() {
           themes
         })
       });
-      showToast("Call draft created.");
+      showToast("Call published and all active authors notified.");
       state.view = "officer-calls";
       localStorage.setItem("bou_view", state.view);
       await hydrate();

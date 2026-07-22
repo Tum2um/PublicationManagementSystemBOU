@@ -8,6 +8,7 @@ from django.utils import timezone
 from bou_pms.api import create_token
 from submissions.models import Call, Submission, Theme
 from reviews.models import ReviewAssignment
+from notifications.models import Notification
 
 
 class CallManagementTests(TestCase):
@@ -35,6 +36,42 @@ class CallManagementTests(TestCase):
         self.assertEqual(response.status_code, 200)
         self.call.refresh_from_db()
         self.assertEqual(self.call.status, "closed")
+
+    def test_created_call_is_active_and_notifies_every_active_author(self):
+        author_group = Group.objects.create(name="Author")
+        active_author = User.objects.create_user("active-author@bou.or.ug", password="Author123!")
+        active_author.groups.add(author_group)
+        inactive_author = User.objects.create_user("inactive-author@bou.or.ug", password="Author123!", is_active=False)
+        inactive_author.groups.add(author_group)
+        response = self.client.post(
+            "/api/calls",
+            data=json.dumps({
+                "fiscal_year": "2027/2028",
+                "description": "New research priorities",
+                "abstract_deadline": (timezone.now() + timedelta(days=10)).isoformat(),
+                "paper_deadline": (timezone.now() + timedelta(days=40)).isoformat(),
+                "themes": ["Financial Stability"],
+            }),
+            content_type="application/json",
+            **self.headers,
+        )
+        self.assertEqual(response.status_code, 201)
+        created_call = Call.objects.get(id=response.json()["call_id"])
+        self.assertEqual(created_call.status, "published")
+        self.assertTrue(Notification.objects.filter(user=active_author, title="New Call for Papers").exists())
+        self.assertFalse(Notification.objects.filter(user=inactive_author).exists())
+
+    def test_publishing_existing_draft_notifies_author_once(self):
+        author_group, _created = Group.objects.get_or_create(name="Author")
+        author = User.objects.create_user("publish-alert@bou.or.ug", password="Author123!")
+        author.groups.add(author_group)
+        self.call.status = "draft"
+        self.call.save()
+        first = self.client.put(f"/api/calls/{self.call.id}/publish", **self.headers)
+        second = self.client.put(f"/api/calls/{self.call.id}/publish", **self.headers)
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(second.status_code, 200)
+        self.assertEqual(Notification.objects.filter(user=author, title="New Call for Papers").count(), 1)
 
     def test_invalid_status_is_rejected(self):
         response = self.client.put(
