@@ -933,7 +933,8 @@ function renderAssignmentCard(item, reviewerMode = false, editorialMode = false)
         </div>
         <span class="badge">${humanize(item.status)}</span>
       </div>
-      ${comments.map((comment) => `<p class="muted"><strong>${humanize(comment.recommendation)}:</strong> ${escapeHtml(comment.comments)} (${humanize(comment.verification_status)})</p>`).join("")}
+      <div class="file-list">${(item.submission_documents || []).map((document) => `<div class="file-chip"><span class="file-icon">${humanize(document.type)}</span><div><strong>${humanize(document.type)}</strong><div class="hint">Version ${document.version_number} · ${formatDate(document.uploaded_at)}</div></div><a class="button secondary compact" href="${API.submission}${document.file_path}" target="_blank" rel="noopener">Download</a></div>`).join("") || `<div class="hint">No paper or abstract uploaded yet.</div>`}</div>
+      ${comments.map((comment) => `<div class="review-comment"><p class="muted"><strong>${humanize(comment.recommendation)}:</strong> ${escapeHtml(comment.comments)} (${humanize(comment.verification_status)})</p>${comment.attachment_path ? `<a class="button secondary compact" href="${API.review}${comment.attachment_path}" target="_blank" rel="noopener">Download review document</a>` : ""}</div>`).join("")}
       ${editorialMode ? `
         <div class="item-actions">
           <button class="button gold" data-verify-assignment="${item.id}" data-approved="true" type="button">Approve assignment</button>
@@ -954,6 +955,10 @@ function renderAssignmentCard(item, reviewerMode = false, editorialMode = false)
           <div class="form-row">
             <label>Comments</label>
             <textarea name="comments" required placeholder="Enter comments using the template and guidelines"></textarea>
+          </div>
+          <div class="form-row">
+            <label>Review document (PDF or DOCX, optional)</label>
+            <input name="file" type="file" accept=".pdf,.docx">
           </div>
           <button class="button" type="submit">Submit comments</button>
         </form>
@@ -1137,7 +1142,7 @@ function bindEnhancements() {
   document.querySelectorAll("[data-view-submission]").forEach((button) => button.addEventListener("click", async () => {
     try {
       const item = await request("submission", `/api/submissions/${button.dataset.viewSubmission}`);
-      document.getElementById("dialog-content").innerHTML = `<span class="eyebrow">Submission #${item.id}</span><h2>${escapeHtml(item.title)}</h2><p><span class="badge">${humanize(item.status)}</span> <span class="badge">${escapeHtml(item.theme_name)}</span></p>${item.decision_reason ? `<div class="message show"><strong>Decision note</strong><br>${escapeHtml(item.decision_reason)}</div>` : ""}<h3>Authors</h3><div class="list">${(item.authors || []).map((author) => `<div class="detail-row"><strong>${escapeHtml(author.name)}${author.is_corresponding ? " (Corresponding)" : ""}</strong><span>${escapeHtml(author.email)} · ${author.is_bou_staff ? "BOU staff" : escapeHtml(author.institution)}</span></div>`).join("")}</div><h3>Documents</h3><div class="list">${(item.documents || []).map((document) => `<div class="detail-row"><span>${humanize(document.type)} · Version ${document.version_number} · ${formatDate(document.uploaded_at)}</span><a class="button secondary" href="${API.submission}${document.file_path}" target="_blank" rel="noopener">Download</a></div>`).join("") || `<div class="empty">No documents uploaded.</div>`}</div>${renderTracking(item.tracking_steps || [])}`;
+      document.getElementById("dialog-content").innerHTML = `<span class="eyebrow">Submission #${item.id}</span><h2>${escapeHtml(item.title)}</h2><p><span class="badge">${humanize(item.status)}</span> <span class="badge">${escapeHtml(item.theme_name)}</span></p>${item.decision_reason ? `<div class="message show"><strong>Decision note</strong><br>${escapeHtml(item.decision_reason)}</div>` : ""}<h3>Authors</h3><div class="list">${(item.authors || []).map((author) => `<div class="detail-row"><strong>${escapeHtml(author.name)}${author.is_corresponding ? " (Corresponding)" : ""}</strong><span>${escapeHtml(author.email)} · ${author.is_bou_staff ? "BOU staff" : escapeHtml(author.institution)}</span></div>`).join("")}</div><h3>Submission documents</h3><div class="list">${(item.documents || []).map((document) => `<div class="detail-row"><span>${humanize(document.type)} · Version ${document.version_number} · ${formatDate(document.uploaded_at)}</span><a class="button secondary" href="${API.submission}${document.file_path}" target="_blank" rel="noopener">Download</a></div>`).join("") || `<div class="empty">No documents uploaded.</div>`}</div><h3>Verified reviewer documents</h3><div class="list">${(item.review_comments || []).map((comment) => `<div class="detail-row"><span>${humanize(comment.reviewer_type)} review · ${humanize(comment.recommendation)}</span>${comment.attachment_path ? `<a class="button secondary" href="${API.review}${comment.attachment_path}" target="_blank" rel="noopener">Download comments</a>` : `<span>${escapeHtml(comment.comments)}</span>`}</div>`).join("") || `<div class="empty">No verified reviewer documents available.</div>`}</div>${renderTracking(item.tracking_steps || [])}`;
       dialog.showModal();
     } catch (error) {
       showToast(error.message);
@@ -1460,10 +1465,8 @@ function bindReviewerView() {
       const data = new FormData(form);
       await request("review", `/api/review-assignments/${form.dataset.assignmentId}/comments`, {
         method: "POST",
-        body: JSON.stringify({
-          recommendation: data.get("recommendation"),
-          comments: data.get("comments")
-        })
+        body: data,
+        headers: {}
       });
       showToast("Review comments submitted to Research Officer.");
       await hydrate();

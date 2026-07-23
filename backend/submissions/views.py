@@ -45,6 +45,13 @@ def notify_authors_of_call(call):
     return created
 
 
+def notify_role(role, title, message, notification_type, submission_id, exclude_user_id=None):
+    user_ids = User.objects.filter(is_active=True, groups__name=role).values_list("id", flat=True).distinct()
+    for user_id in user_ids:
+        if user_id != exclude_user_id:
+            create_notification(user_id, title, message, notification_type, submission_id)
+
+
 def can_access_submission(user, roles, submission):
     """Apply object-level access rules for authors, workflow staff, and reviewers."""
     return (
@@ -145,6 +152,18 @@ def serialize_submission(submission, include_details=False):
                 "version_number": document.version_number,
             }
             for document in submission.documents.all()
+        ]
+        result["review_comments"] = [
+            {
+                "id": comment.id,
+                "reviewer_type": assignment.reviewer_type,
+                "recommendation": comment.recommendation,
+                "comments": comment.comments,
+                "attachment_name": Path(comment.attachment.name).name if comment.attachment else "",
+                "attachment_path": f"/api/review-comments/{comment.id}/attachment" if comment.attachment else "",
+            }
+            for assignment in submission.review_assignments.all()
+            for comment in assignment.comments.filter(verification_status="approved")
         ]
     return result
 
@@ -306,6 +325,13 @@ def submissions(request):
             "submission",
             submission.id,
         )
+        notify_role(
+            "ResearchOfficer",
+            "New submission received",
+            f'Author submitted "{submission.title}" for review.',
+            "submission",
+            submission.id,
+        )
         record_audit(request.user, "Created submission", "submission", submission.id, details=submission.title)
         return JsonResponse({"message": "Submission created", "submission_id": submission.id}, status=201)
 
@@ -414,6 +440,15 @@ def submission_status(request, submission_id):
             "decision",
             submission.id,
         )
+    if submission.current_stage in {"editorial_board", "approved_for_publishing"}:
+        notify_role(
+            "EditorialBoard",
+            "Submission ready for verification",
+            f'"{submission.title}" is ready for Editorial Board verification.',
+            "decision",
+            submission.id,
+            exclude_user_id=request.user.id,
+        )
     return JsonResponse({"message": "Submission status updated", "submission": serialize_submission(submission, True)})
 
 
@@ -485,6 +520,13 @@ def submission_documents(request, submission_id):
         request.user.id,
         "Document uploaded",
         f'Your {doc_type} document for "{submission.title}" has been uploaded successfully.',
+        "document",
+        submission.id,
+    )
+    notify_role(
+        "ResearchOfficer",
+        "Submission document uploaded",
+        f'Author uploaded {doc_type} version {document.version_number} for "{submission.title}".',
         "document",
         submission.id,
     )

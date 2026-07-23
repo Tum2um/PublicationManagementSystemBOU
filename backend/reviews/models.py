@@ -25,4 +25,5 @@ class ReviewComment(models.Model):
     verification_status = models.CharField(max_length=30, default="pending")
     verification_reason = models.TextField(blank=True)
     verified_by = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.PROTECT, null=True, blank=True)
+    attachment = models.FileField(upload_to="review_documents/", null=True, blank=True)
     submitted_at = models.DateTimeField(auto_now_add=True)

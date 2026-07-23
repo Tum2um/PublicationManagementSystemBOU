@@ -1,14 +1,44 @@
 """Reviewer assignment, verification, and reviewer-comment workflow endpoints."""
 
 from django.contrib.auth.models import User
-from django.http import JsonResponse
+from django.core.files.storage import default_storage
+from django.http import FileResponse, JsonResponse
+from django.shortcuts import get_object_or_404
 from django.views.decorators.csrf import csrf_exempt
+from pathlib import Path
+from uuid import uuid4
 
 from bou_pms.api import json_error, parse_json, token_required
 from accounts.models import record_audit
 from notifications.models import create_notification
 from reviews.models import ReviewAssignment, ReviewComment
 from submissions.models import Submission
+
+
+def notify_role(role, title, message, notification_type, submission_id, exclude_user_id=None):
+    user_ids = User.objects.filter(is_active=True, groups__name=role).values_list("id", flat=True).distinct()
+    for user_id in user_ids:
+        if user_id != exclude_user_id:
+            create_notification(user_id, title, message, notification_type, submission_id)
+
+
+def validate_review_attachment(uploaded_file):
+    if not uploaded_file:
+        return None, None
+    if uploaded_file.size > 10 * 1024 * 1024:
+        return None, "File too large. Max 10 MB"
+    extension = uploaded_file.name.rsplit(".", 1)[-1].lower() if "." in uploaded_file.name else ""
+    allowed = {
+        "pdf": {"application/pdf"},
+        "docx": {"application/vnd.openxmlformats-officedocument.wordprocessingml.document", "application/octet-stream"},
+    }
+    if extension not in allowed or uploaded_file.content_type not in allowed[extension]:
+        return None, "File type not allowed. Allowed: pdf, docx"
+    header = uploaded_file.read(4)
+    uploaded_file.seek(0)
+    if (extension == "pdf" and header != b"%PDF") or (extension == "docx" and header[:2] != b"PK"):
+        return None, "The uploaded file content does not match its extension"
+    return extension, None
 
 
 def serialize_comment(comment):
@@ -18,6 +48,8 @@ def serialize_comment(comment):
         "comments": comment.comments,
         "verification_status": comment.verification_status,
         "verification_reason": comment.verification_reason,
+        "attachment_name": Path(comment.attachment.name).name if comment.attachment else "",
+        "attachment_path": f"/api/review-comments/{comment.id}/attachment" if comment.attachment else "",
         "submitted_at": comment.submitted_at.isoformat(),
     }
 
@@ -37,6 +69,17 @@ def serialize_assignment(assignment):
         "verify_reason": assignment.verify_reason,
         "created_at": assignment.created_at.isoformat(),
         "comments": [serialize_comment(comment) for comment in assignment.comments.all()],
+        "submission_documents": [
+            {
+                "id": document.id,
+                "type": document.doc_type,
+                "version_number": document.version_number,
+                "uploaded_at": document.uploaded_at.isoformat(),
+                "file_path": f"/api/documents/{document.id}/download",
+            }
+            for document in assignment.submission.documents.all()
+            if document.file
+        ],
     }
 
 
@@ -93,6 +136,13 @@ def review_assignments(request):
             "review",
             submission.id,
         )
+        notify_role(
+            "EditorialBoard",
+            "Reviewer assignment awaiting verification",
+            f'{data["reviewer_type"].title()} reviewer assignment for "{submission.title}" requires verification.',
+            "review",
+            submission.id,
+        )
         record_audit(request.user, "Created reviewer assignment", "review_assignment", assignment.id, details=data["reviewer_type"])
         return JsonResponse({
             "message": "Review assignment created",
@@ -132,6 +182,13 @@ def verify_assignment(request, assignment_id):
             "review",
             assignment.submission_id,
         )
+        create_notification(
+            assignment.assigned_by_id,
+            "Reviewer assignment approved",
+            f'The {assignment.reviewer_type} reviewer assignment for "{assignment.submission.title}" was approved.',
+            "review",
+            assignment.submission_id,
+        )
     else:
         create_notification(
             assignment.assigned_by_id,
@@ -154,18 +211,34 @@ def assignment_comments(request, assignment_id):
         return json_error("Review assignment not found", 404)
     if assignment.reviewer_id != request.user.id:
         return json_error("You can only comment on assignments given to you", 403)
-    data = parse_json(request)
-    if data is None:
-        return json_error("Invalid JSON", 400)
+    if request.content_type and request.content_type.startswith("multipart/form-data"):
+        data = request.POST
+        uploaded_file = request.FILES.get("file")
+    else:
+        data = parse_json(request)
+        uploaded_file = None
+        if data is None:
+            return json_error("Invalid JSON", 400)
     if not data.get("recommendation") or not data.get("comments"):
         return json_error("recommendation and comments are required", 400)
+    extension, attachment_error = validate_review_attachment(uploaded_file)
+    if attachment_error:
+        return json_error(attachment_error, 400)
+    attachment_path = ""
+    if uploaded_file:
+        attachment_path = default_storage.save(
+            f"review_documents/{assignment.id}/{uuid4().hex}.{extension}", uploaded_file
+        )
     comment = ReviewComment.objects.create(
         assignment=assignment,
         recommendation=data["recommendation"],
         comments=data["comments"],
+        attachment=attachment_path or None,
     )
     assignment.status = "comments_submitted"
     assignment.save()
+    assignment.submission.status = f"{assignment.reviewer_type}_comments_submitted"
+    assignment.submission.save(update_fields=["status"])
     record_audit(request.user, "Submitted reviewer comments", "review_comment", comment.id, details=comment.recommendation)
     create_notification(
         assignment.assigned_by_id,
@@ -223,8 +296,50 @@ def verify_comment(request, comment_id):
         elif comment.assignment.reviewer_type == "external":
             submission.status = "editorial_board"
             submission.current_stage = "editorial_board"
+            notify_role(
+                "EditorialBoard",
+                "External review ready for verification",
+                f'Verified external review comments for "{submission.title}" are ready for final verification.',
+                "review",
+                submission.id,
+            )
         else:
             submission.status = "internal_review_complete"
             submission.current_stage = "internal_review"
+            create_notification(
+                comment.assignment.assigned_by_id,
+                "Internal review comments verified",
+                f'Internal review for "{submission.title}" is ready for the next workflow decision.',
+                "review",
+                submission.id,
+            )
         submission.save()
     return JsonResponse({"message": "Review comment verification recorded", "status": comment.verification_status})
+
+
+@token_required()
+def review_attachment_download(request, comment_id):
+    if request.method != "GET":
+        return json_error("Method not allowed", 405)
+    comment = get_object_or_404(
+        ReviewComment.objects.select_related("assignment__submission"), id=comment_id
+    )
+    assignment = comment.assignment
+    roles = set(request.user_roles)
+    allowed = (
+        assignment.reviewer_id == request.user.id
+        or bool({"Admin", "ResearchOfficer", "EditorialBoard"}.intersection(roles))
+        or (
+            comment.verification_status == "approved"
+            and assignment.submission.corresponding_author_id == request.user.id
+        )
+    )
+    if not allowed:
+        return json_error("Permission denied", 403)
+    if not comment.attachment:
+        return json_error("Review attachment not found", 404)
+    return FileResponse(
+        comment.attachment.open("rb"),
+        as_attachment=True,
+        filename=Path(comment.attachment.name).name,
+    )

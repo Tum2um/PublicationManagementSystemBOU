@@ -35,6 +35,7 @@ urlpatterns = [
     path("api/review-assignments/<int:assignment_id>/verify", review_views.verify_assignment),
     path("api/review-assignments/<int:assignment_id>/comments", review_views.assignment_comments),
     path("api/review-comments/<int:comment_id>/verify", review_views.verify_comment),
+    path("api/review-comments/<int:comment_id>/attachment", review_views.review_attachment_download),
     path("notifications", notification_views.notifications),
     path("notifications/user/<int:user_id>", notification_views.user_notifications),
     path("notifications/user/<int:user_id>/unread-count", notification_views.unread_count),
