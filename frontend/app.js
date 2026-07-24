@@ -265,14 +265,27 @@ function navItems() {
 }
 
 function navIcon(id) {
-  const icons = {
-    dashboard: "◉", "admin-users": "♟", "admin-departments": "▥", "admin-themes": "◆",
-    "admin-templates": "▤", publications: "◎", "admin-audit": "⌕", "officer-calls": "▣",
-    "officer-assign": "♟", "officer-verify": "✓", reports: "▥", "editorial-verify": "✓",
-    "editorial-publish": "✎", "reviewer-assignments": "▧", "author-submit": "↥",
-    "author-submissions": "▰", notifications: "♢"
+  const paths = {
+    dashboard: '<rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>',
+    "admin-users": '<circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2"/><path d="M16 4a4 4 0 0 1 0 8m2 2a6 6 0 0 1 4 5v2"/>',
+    "admin-departments": '<path d="M3 21h18M5 21V6l7-3 7 3v15M9 9h1m4 0h1m-6 4h1m4 0h1m-6 4h1m4 0h1"/>',
+    "admin-themes": '<path d="M20 13 13 20l-9-9V4h7z"/><circle cx="8.5" cy="8.5" r="1"/>',
+    "admin-templates": '<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h6m-6 4h6"/>',
+    publications: '<circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15 15 0 0 1 0 20M12 2a15 15 0 0 0 0 20"/>',
+    "admin-audit": '<circle cx="11" cy="11" r="7"/><path d="m20 20-4-4"/>',
+    "officer-calls": '<path d="m3 11 14-6v14L3 13zM17 10h3a2 2 0 0 1 0 4h-3M5 14l2 7h4l-2-8"/>',
+    "officer-assign": '<circle cx="9" cy="8" r="4"/><path d="M2 21v-2a7 7 0 0 1 14 0v2m3-8v6m-3-3h6"/>',
+    "officer-verify": '<circle cx="12" cy="12" r="10"/><path d="m7 12 3 3 7-7"/>',
+    reports: '<path d="M4 20V10m6 10V4m6 16v-7m4 7H2"/>',
+    "editorial-verify": '<circle cx="12" cy="12" r="10"/><path d="m7 12 3 3 7-7"/>',
+    "editorial-publish": '<path d="M4 4h16v16H4zM8 8h8m-8 4h8m-8 4h5"/>',
+    "reviewer-assignments": '<path d="M9 5h6l1 3H8z"/><path d="M6 7H4v15h16V7h-2M8 13h8m-8 4h6"/>',
+    "author-submit": '<path d="M12 16V3m-5 5 5-5 5 5M5 21h14"/>',
+    "author-submissions": '<path d="M3 6h7l2 2h9v12H3z"/>',
+    notifications: '<rect x="3" y="5" width="18" height="14" rx="2"/><path d="m3 7 9 6 9-6"/>'
   };
-  return icons[id] || "•";
+  const body = paths[id] || '<circle cx="12" cy="12" r="2"/>';
+  return `<svg viewBox="0 0 24 24" aria-hidden="true">${body}</svg>`;
 }
 
 function renderShell() {
@@ -295,7 +308,7 @@ function renderShell() {
         <nav class="nav">
           ${nav.map((item, index) => `${index === 0 || nav[index - 1].group !== item.group ? `<span class="nav-group-label">${item.group}</span>` : ""}<button data-view="${item.id}" class="${state.view === item.id ? "active" : ""}"><span class="nav-icon">${navIcon(item.id)}</span><span>${item.label}</span>${item.id === "notifications" && state.notifications.some((notification) => !notification.is_read) ? `<span class="nav-count">${state.notifications.filter((notification) => !notification.is_read).length}</span>` : ""}</button>`).join("")}
         </nav>
-        <button class="button gold" id="refresh-btn" type="button">Refresh data</button>
+        <button class="button gold" id="refresh-btn" type="button"><span aria-hidden="true">↻</span> Refresh data</button>
       </aside>
       <main class="main">
         <div class="topbar">
@@ -309,7 +322,7 @@ function renderShell() {
               <strong>${state.user.name || state.user.email}</strong><br>
               <small class="muted">${state.user.roles.join(", ")}</small>
             </div>
-            <button class="button secondary" id="logout-btn" type="button">Logout</button>
+            <button class="button secondary" id="logout-btn" type="button"><span aria-hidden="true">↪</span> Logout</button>
           </div>
         </div>
         <div id="view-root">${renderCurrentView()}</div>
@@ -893,7 +906,7 @@ function renderSubmissionCard(item, authorMode = false) {
             <option value="revision">Revised paper</option>
           </select>
           <input name="file" type="file" accept=".pdf,.docx" required>
-          <button class="button secondary" type="submit">Upload document</button>
+          <button class="button secondary" type="submit"><span aria-hidden="true">↑</span> Upload document</button>
           <button class="button secondary" data-edit-submission="${item.id}" type="button">Edit</button>
           <button class="button danger" data-delete-submission="${item.id}" type="button">Delete</button>
         </form>
@@ -960,7 +973,7 @@ function renderAssignmentCard(item, reviewerMode = false, editorialMode = false)
             <label>Review document (PDF or DOCX, optional)</label>
             <input name="file" type="file" accept=".pdf,.docx">
           </div>
-          <button class="button" type="submit">Submit comments</button>
+          <button class="button" type="submit"><span aria-hidden="true">✉</span> Submit comments</button>
         </form>
       ` : ""}
     </article>

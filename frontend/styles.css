@@ -346,6 +346,16 @@ a.button {
   font-weight: 750;
 }
 
+.nav-icon {
+  display: inline-flex;
+  width: 22px;
+  min-width: 22px;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  line-height: 1;
+}
+
 .nav button.active,
 .nav button:hover {
   color: var(--white);
@@ -902,6 +912,26 @@ h4,
   width: 18px;
   text-align: center;
   opacity: 0.9;
+}
+
+.nav-icon svg {
+  display: block;
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.nav button {
+  color: #fff;
+}
+
+.nav button.active,
+.nav button:hover {
+  color: var(--bou-gold);
 }
 
 .nav-count {
